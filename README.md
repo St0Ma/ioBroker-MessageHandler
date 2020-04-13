@@ -31,15 +31,16 @@ Beispiele für Nachrichten:
 # Kernfunktionen:
 
 - Ermöglicht es Nachrichten aus Skripten auszulösen und zu entfernen. Dies kann über zwei Wege erfolgen:
-- Automatisches Erzeugen/Entfernen von Nachrichten über das Javascript MessageStateCreator.
+   - **Automatisches Erzeugen/Entfernen von Nachrichten** über das Javascript MessageStateCreator.
   Es werden konfigurierte Datenpunkte überwacht und bei konfigurierten Bedingungen Nachrichten erzeugt oder auch entfernt. 
   Die Textausgabe der Nachrichten kann auch konfiguriert werden und dynamisch erzeugt werden.
-- Aufruf Javascript-Funktionen postMessage(..) oder removeMessage(..)
+   - **Javascript-Funktionen postMessage(..) oder removeMessage(..)** für den Einsatz in eigenen Skripten.
+   
 - Es können entweder alle Nachrichten eines Nachrichtentyps protokolliert werden oder immer nur die letzte eingetretende Nachricht.
 
 - Nachrichten werden nach Prioritäten visuell in VIS dargestellt. Es stehen zwei VIS-Ausgaben zur Verfügung:
    - einfache HTML-Tabelle (ohne Schnickschnack)
-   - Material Design CSS 2.0 Card (Voraussetzung ist die Nutzung des Material Design CSS 2.0; siehe https://github.com/Uhula/ioBroker-Material-Design-Style)
+   - Material Design CSS 2.0 Card (Voraussetzung ist die Installation des ["Material Design CSS 2.0"](https://github.com/Uhula/ioBroker-Material-Design-Style)
 
 - Nachrichten können (optional) in VIS global quittiert werden.
 
