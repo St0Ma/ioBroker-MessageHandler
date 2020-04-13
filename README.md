@@ -57,18 +57,18 @@ Beispiele für Nachrichten:
 
 # Installation
 
-1. Das Javascript "MessageGlobal" als globales Script installieren und starten.
+1. Das Javascript ["MessageGlobal"](https://github.com/St0Ma/ioBroker-MessageHandler/raw/master/MessageGlobal.js) als globales Script installieren und starten.
 
-2.  Das Javascript "MessageHandler" serverseitiges Script installieren und starten-5 Sek warten-stoppen-starten.
+2.  Das Javascript ["MessageHandler"](https://github.com/St0Ma/ioBroker-MessageHandler/raw/master/MessageHandler.js) serverseitiges Script installieren und starten-5 Sek warten-stoppen-starten.
     Beim 1.Start werden die notwendigen States unter STATE_PATH = '0_userdata.0.messageHandler.'
     erzeugt. Erst beim 2.Start instanziiert das Script die Event-Handler und läuft dann.
 
-3. Das Javascript "MessageStateCreator" installieren und starten (optional)
+3. Das Javascript ["MessageStateCreator"](https://github.com/St0Ma/ioBroker-MessageHandler/raw/master/MessageStateCreator.js)  installieren und starten (optional)
 
 4. VIS-Ausgabe: 
 
- - Material Design CSS 2.0 Card: Die Datei findet sich im Ordner "vis" unter dem Namen "cardMessages.view". Der Inhalt kann in VIS als eigener VIEW importiert werden.
- - HTML-Ausgabe: Die Datei findet sich im Ordner "vis" unter dem Namen "cardMessages_html.view". Der Inhalt kann in VIS als eigener VIEW importiert werden.
+ - Material Design CSS 2.0 Card: Der Inhalt der ["cardMessages.view"](https://github.com/St0Ma/ioBroker-MessageHandler/raw/master/vis/cardMessages.view) kann in VIS als eigener VIEW importiert werden.
+ - HTML-Ausgabe: Der Inhalt der ["cardMessages_html.view"](https://github.com/St0Ma/ioBroker-MessageHandler/raw/master/vis/cardMessages_html.view) kann in VIS als eigener VIEW importiert werden.
 
 # Konfiguration
 
