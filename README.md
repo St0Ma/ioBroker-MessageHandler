@@ -3,6 +3,13 @@
 Protokollierung von Nachrichten / Ereignissen in ioBroker.
 Nachrichten können damit als kompakte Darstellung des globalen Systemzustands in VIS verwendet werden.
 
+Die Idee ist es, alle relevanten Informationen auf "einen Blick" zu erkennen. 
+Wichtige und kritische Ereignisse werden daher in der Liste zentral oben platziert. 
+Unwichtigere Informationen eher unten.
+
+![Material](https://github.com/St0Ma/ioBroker-MessageHandler/blob/master/vis/1586687354882-2020-04-12-12_27_30-vis.png)
+
+
 Beispiele für Nachrichten:
 - Alarmanlage ausgelöst!
 - Wasseralarm
@@ -17,10 +24,8 @@ Beispiele für Nachrichten:
 - Ausgabe Temperatur / Luftfeuchte
 - Termine des Tages
 - Termine morgen
+- ...
 
-Die Idee ist es, alle relevanten Informationen auf "einen Blick" zu erkennen. 
-Wichtige und kritische Ereignisse werden daher in der Liste zentral oben platziert. 
-Unwichtigere Informationen eher unten.
 
 
 # Kernfunktionen:
@@ -33,8 +38,8 @@ Unwichtigere Informationen eher unten.
 - Es können entweder alle Nachrichten eines Nachrichtentyps protokolliert werden oder immer nur die letzte eingetretende Nachricht.
 
 - Nachrichten werden nach Prioritäten visuell in VIS dargestellt. Es stehen zwei VIS-Ausgaben zur Verfügung:
-  -- einfache HTML-Tabelle (ohne Schnickschnack)
-  -- Material Design CSS 2.0 Card für Uhula.
+   - einfache HTML-Tabelle (ohne Schnickschnack)
+   - Material Design CSS 2.0 Card (Voraussetzung ist die Nutzung des Material Design CSS 2.0; siehe https://github.com/Uhula/ioBroker-Material-Design-Style)
 
 - Nachrichten können (optional) in VIS global quittiert werden.
 
