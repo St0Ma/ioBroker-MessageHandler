@@ -4,9 +4,9 @@
  * Protokollierung von Nachrichten für IOBroker.
  * Ermöglicht es Nachrichten global in einer Liste zu erfassen und nach Prioritäten visuell anzuzeigen.
  * ----------------------------------------------------
- * Autor: ioBroker-Forum-Name: Tirador
- * Source:  https://forum.iobroker.net/topic/31959/script-messagehandler-nachrichten-protokollieren-widget/15
- * Support: https://forum.iobroker.net/topic/31959/script-messagehandler-nachrichten-protokollieren-widget/15
+ * Autor: Github-Name: St0Ma ioBroker-Forum-Name: Tirador 
+ * Source:  https://github.com/St0Ma/ioBroker-MessageHandler
+ * Support: https://forum.iobroker.net/topic/32207/script-messagehandler-nachrichten-protokollieren-vis
  * ----------------------------------------------------
  * Change Log:
  *  0.3  - few code improvements
