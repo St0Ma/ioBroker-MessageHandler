@@ -59,14 +59,16 @@ Beispiele für Nachrichten:
 
 1. Das Javascript "MessageGlobal" als globales Script installieren und starten.
 
-2.  Den Javascript "MessageHandler" serverseitiges Script installieren und starten-5 Sek warten-stoppen-starten.
+2.  Das Javascript "MessageHandler" serverseitiges Script installieren und starten-5 Sek warten-stoppen-starten.
     Beim 1.Start werden die notwendigen States unter STATE_PATH = '0_userdata.0.messageHandler.'
     erzeugt. Erst beim 2.Start instanziiert das Script die Event-Handler und läuft dann.
 
 3. Das Javascript "MessageStateCreator" installieren und starten (optional)
 
-4. VIS-Ausgabe: Für das Material Design CSS von Uhula steht eine eigene Card in Form einer View zur Verfügung.
-    Optional gibt es auch eine einfache HTML-Tabellenausgabe als View zur Verfügung.
+4. VIS-Ausgabe: 
+
+ - Material Design CSS 2.0 Card: Die Datei findet sich im Ordner "vis" unter dem Namen "cardMessages.view". Der Inhalt kann in VIS als eigener VIEW importiert werden.
+ - HTML-Ausgabe: Die Datei findet sich im Ordner "vis" unter dem Namen "cardMessages_html.view". Der Inhalt kann in VIS als eigener VIEW importiert werden.
 
 # Konfiguration
 
