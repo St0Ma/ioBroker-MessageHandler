@@ -9,8 +9,10 @@
  * Support: https://forum.iobroker.net/topic/32207/script-messagehandler-nachrichten-protokollieren-vis
  * ----------------------------------------------------
  * Change Log:
- *  0.3  - few code improvements
- *  0.2  - Initial Release
+ *  0.4  - Ergänzung, um Nachrichtenereignissse (Telegram und Email)
+ *       - Ergänzung, um Nachrichten in VIS zu quittieren.
+ *  0.3  - Code Optimierung
+ *  0.2  - Initiale Veröffentlichung
  * ---------------------------------------------------- 
  * (c) 2020 by Tirador, MIT License, no warranty, use on your own risc
  ******************************************************************************
@@ -39,6 +41,7 @@
  - Aktive Steckdosen
  - Post im Briefkasten mit Datum letzter Einwurf
  - Nächster Müllabfuhrtermin mit Information zur Tonne
+ - Kühlschrank geöffnet
  - Termine des Tages
  - Termine morgen
 
@@ -118,6 +121,15 @@
              Nachrichten gleicher Priorität werden nach Timestamp sortiert (neueste oben).
              In der Regel wird die Prorität über die Severitys gesteuert und nicht für jede Nachricht separat festgelegt.
 
+- msgEvent: Definition von Nachrichtenereignissen.  Nachrichtenereignissse werden mit einer Nachricht ausgelöst.
+            Es können mit einer Nachricht mehrere Nachrichtenereignisse ausgelöst werden (z.B. Email und Telegram-Pushnachricht).
+
+            Es sind folgende Ereignisse konfigurierbar: 
+            - Telegram (TELEGRAM-Adapter ist Voraussetzung)
+            - Email (Email-Adapter ist Voraussetzung)
+            Die Konfiguration der Nachrichtenereignisse erfolgt unten im Skript in der Konstante MESSAGE_EVENTS.
+
+
  - msgHeader: Kopftext der Nachricht. Hier kann ein Standardtext definiert werden.
 
  - msgText: Text der Nachricht. im Nachrichtentext sind variable Parameter &1, &2 etc. möglich, die mit der Ausführung der Nachricht ersetzt werden.
@@ -150,7 +162,7 @@
 
  1. Das Javascript "MessageGlobal" als globales Script installieren und starten.
 
- 2. Den Javascript "MessageHandler" serverseitiges Script installieren und starten-5 Sek warten-stoppen-starten. 
+ 2. Das Javascript "MessageHandler" serverseitiges Script installieren und starten-5 Sek warten-stoppen-starten. 
  Beim 1.Start werden die notwendigen States unter STATE_PATH = '0_userdata.0.messageHandler.' 
  erzeugt. Erst beim 2.Start instanziiert das Script die Event-Handler und läuft dann.
 
@@ -163,7 +175,14 @@
  Zur Konfiguration sind zwei Schritte erforderlich:
 
  1. Die Grundkonfiguration erfolgt über die Festlegung von MESSAGE-IDs (Nachrichten-Ids)
-  im Javascript "MessageHandler". Optional kann in der Funktion MessageHandler|doInit() 
+  im Javascript "MessageHandler". 
+
+  Optional kann mit den Nachrichten auch ein sogenannten Nachrichtenereignisse ausgelöst 
+  werden (z.B. Senden einer Email oder TELEGRAM-Pushnachricht).
+  Hierfür muss den Nachrichten ein sogenanntes msgEvent zugeordnet werden, dass über 
+  die Konstante MESSAGE_EVENT unten im Skript konfiguriert wird.
+  
+  Optional kann in der Funktion MessageHandler|doInit() 
   eine Anpassung der KONFIGURATION vorgenommen werden.
 
  2. Über das Javascript "MessageStateCreator" können Datenpunkte überwacht werden 
@@ -200,56 +219,89 @@ updatePressed : auf true setzen, wenn ein table/list update außerhalb des Inter
 
 /*******************************************************************************/
 
+
 const MESSAGE_IDS = {
 
+        //---------------------------------------------
+        // ALARM-Meldungen
+        //---------------------------------------------
+
         // Alarmanlage
-        HOUSE_ALARM: {logType: 'LAST',  severity: 'ALARM',  msgHeader: "Alarm im Haus", msgText: "", quit: false, mdIcon: 'notification_important', mdIconColor: '', fontColor: '', backgroundColor: ''},
+        HOUSE_ALARM: {msgEvent: [''], logType: 'LAST',  severity: 'ALARM',  msgHeader: "Alarm im Haus", msgText: "", quit: false, mdIcon: 'notification_important', mdIconColor: '', fontColor: '', backgroundColor: ''},
 
         // Wasseralarm
-        WATER_ALARM: {logType: 'LAST',  severity: 'ALARM',  msgHeader: "Wasseralarm", msgText: "", quit: false, mdIcon: 'waves', mdIconColor: '', fontColor: '', backgroundColor: ''},
+        WATER_ALARM: {msgEvent: [''], logType: 'LAST',  severity: 'ALARM',  msgHeader: "Wasseralarm", msgText: "", quit: false, mdIcon: 'waves', mdIconColor: '', fontColor: '', backgroundColor: ''},
+
+        //Internet Down
+        INTERNET_DOWN: {msgEvent: [''], logType: 'All',  severity: 'ALARM',  msgHeader: "Internetverbindung Offline", msgText: "", quit: true, mdIcon: 'error', mdIconColor: '', fontColor: '', backgroundColor: ''},
+
+        // Offener Gefrierschrank
+        FREEZER_DOOR_ISOPEN_INFO: {msgEvent: [''], logType: 'LAST',  severity: 'ALARM',  msgHeader: "Gefrierschrank geöffnet", msgText: "Bitte Gefrierschrank schließen", quit: false, mdIcon: 'ac_unit', mdIconColor: '', fontColor: '', backgroundColor: ''},
+
+        // Offener Kühlschrank
+        FRIDGE_DOOR_ISOPEN_INFO: {msgEvent: [''], logType: 'LAST',  severity: 'ALARM',  msgHeader: "Kühlschrank Garage offen", msgText: "Bitte Kühlschrank schließen", quit: false, mdIcon: 'ac_unit', mdIconColor: '', fontColor: '', backgroundColor: ''},
+
+        //---------------------------------------------
+        // WARN-Meldungen
+        //---------------------------------------------
 
         // Offene Fenster
-        WINDOW_ISCLOSED_INFO: {logType: 'LAST',  severity: 'INFO',  msgHeader: "Fenster sind zu", msgText: "", quit: false, mdIcon: 'tab', mdIconColor: '', fontColor: '', backgroundColor: ''},
-
-        // Offene Fenster
-        WINDOW_ISOPEN_INFO: {logType: 'LAST',  severity: 'WARN',  msgHeader: "Fenster geöffnet", msgText: "Bitte Fenster schließen", quit: false, mdIcon: 'tab', mdIconColor: '', fontColor: '', backgroundColor: ''},
+        WINDOW_ISOPEN_INFO: {msgEvent: [''], logType: 'LAST',  severity: 'WARN',  msgHeader: "Fenster geöffnet", msgText: "Bitte Fenster schließen", quit: false, mdIcon: 'tab', mdIconColor: '', fontColor: '', backgroundColor: ''},
 
         // Offene Türen
-        DOOR_ISOPEN_INFO: {logType: 'LAST',  severity: 'WARN',  msgHeader: "Fenster geöffnet", msgText: "Bitte Fenster schließen", quit: false, mdIcon: 'meeting_room', mdIconColor: '', fontColor: '', backgroundColor: ''},
-
-        // Erinnerung Fenster lüften!
-        OPEN_WINDOW_INFO: {logType: 'LAST',  severity: 'INFO',  msgHeader: "Lüftungserinnerung", msgText: "Bitte Fenster öffnen", quit: false, mdIcon: 'opacity', mdIconColor: '', fontColor: '', backgroundColor: ''},
-
-        // Angeschaltete Lichter
-        LIGHTS_ON_INFO: {logType: 'LAST',  severity: 'INFO',  msgHeader: "Licht angeschaltet", msgText: "", quit: false, mdIcon: 'highlight', mdIconColor: '', fontColor: '', backgroundColor: ''},
-        
-        // Aktiv Steckdosen
-        PLUGS_ON_INFO: {logType: 'LAST',  severity: 'INFO',  msgHeader: "Steckdosen angeschaltet", msgText: "", quit: false, mdIcon: '', mdIconColor: '', fontColor: '', backgroundColor: ''},
-
-        // Post im Briefkasten
-        LAST_POSTENTRACE_INFO: {logType: 'LAST',  severity: 'INFO',  msgHeader: "Briefkasten", msgText: "Neue Post im Briefkasten!", mdIcon: 'drafts', quit: true, mdIconColor: '', fontColor: '', backgroundColor: ''},
-
-        // Müllabfuhr
-        NEXT_GARBAGE_INFO: {logType: 'LAST',  severity: 'INFO',  msgHeader: "Müll", msgText: "Tonne: &1, am &2 ", quit: true, mdIcon: 'delete',  mdIconColor: '', fontColor: '', backgroundColor: ''},
-
-        // Anwesende Personen
-        PERSONS_AVAILABLE_INFO: {logType: 'LAST',  severity: 'INFO',  msgHeader: "Anwesende Personen", msgText: "", quit: false, mdIcon: 'how_to_reg', quit: false, mdIconColor: '', fontColor: '', backgroundColor: ''},
+        DOOR_ISOPEN_INFO: {msgEvent: [''], logType: 'LAST',  severity: 'WARN',  msgHeader: "Fenster geöffnet", msgText: "Bitte Fenster schließen", quit: false, mdIcon: 'meeting_room', mdIconColor: '', fontColor: '', backgroundColor: ''},
 
         // Termine des Tages
-        CALENDAR_EVENTS_TODAY: {logType: 'LAST',  severity: 'WARN',  msgHeader: "Heutige Termine", msgText: "", quit: false, mdIcon: 'date_range',  mdIconColor: '', fontColor: '', backgroundColor: ''},
+        CALENDAR_EVENTS_TODAY: {msgEvent: [''], logType: 'LAST',  severity: 'WARN',  msgHeader: "Heutige Termine", msgText: "", quit: false, mdIcon: 'date_range',  mdIconColor: '', fontColor: '', backgroundColor: ''},
 
         // Termine von Morgen
-        CALENDAR_EVENTS_TOMORROW: {logType: 'LAST',  severity: 'WARN',  msgHeader: "Morgige Termine", msgText: "", quit: false, mdIcon: 'date_range', mdIconColor: '', fontColor: '', backgroundColor: ''},
+        CALENDAR_EVENTS_TOMORROW: {msgEvent: [''], logType: 'LAST',  severity: 'WARN',  msgHeader: "Morgige Termine", msgText: "", quit: false, mdIcon: 'date_range', mdIconColor: '', fontColor: '', backgroundColor: ''},
+
+        // Deutscher Wetter Dienst Warnung
+        DWD_WARN: {msgEvent: [''], logType: 'LAST',  severity: 'WARN',  msgHeader: "Wetterwarnung", msgText: "", quit: false, mdIcon: 'track_changes', mdIconColor: '', fontColor: '', backgroundColor: ''},
+
+
+        //---------------------------------------------
+        // INFO-Meldungen
+        //---------------------------------------------
+
+        // Offene Fenster
+        WINDOW_ISCLOSED_INFO: {msgEvent: [''], logType: 'LAST',  severity: 'INFO',  msgHeader: "Fenster sind zu", msgText: "", quit: false, mdIcon: 'tab', mdIconColor: '', fontColor: '', backgroundColor: ''},
+
+        // Erinnerung Fenster lüften!
+        OPEN_WINDOW_INFO: {msgEvent: [''], logType: 'LAST',  severity: 'INFO',  msgHeader: "Lüftungserinnerung", msgText: "Bitte Fenster öffnen", quit: false, mdIcon: 'opacity', mdIconColor: '', fontColor: '', backgroundColor: ''},
+
+        // Angeschaltete Lichter
+        LIGHTS_ON_INFO: {msgEvent: [''], logType: 'LAST',  severity: 'INFO',  msgHeader: "Licht angeschaltet", msgText: "", quit: false, mdIcon: 'highlight', mdIconColor: '', fontColor: '', backgroundColor: ''},
+        
+        // Aktiv Steckdosen
+        PLUGS_ON_INFO: {msgEvent: [''], logType: 'LAST',  severity: 'INFO',  msgHeader: "Steckdosen angeschaltet", msgText: "", quit: false, mdIcon: '', mdIconColor: '', fontColor: '', backgroundColor: ''},
+
+        // Post im Briefkasten
+        LAST_POSTENTRACE_INFO: {msgEvent: ['TELEGRAM'], logType: 'LAST',  severity: 'INFO',  msgHeader: "Briefkasten", msgText: "Neue Post im Briefkasten!", mdIcon: 'drafts', quit: true, mdIconColor: '', fontColor: '', backgroundColor: ''},
+
+        // Müllabfuhr-Termine
+        NEXT_GARBAGE_INFO: {msgEvent: [''], logType: 'LAST',  severity: 'INFO',  msgHeader: "Müll", msgText: "Tonne: &1, am &2 ", quit: true, mdIcon: 'delete',  mdIconColor: '', fontColor: '', backgroundColor: ''},
+
+        // Anwesende Personen
+        PERSONS_AVAILABLE_INFO: {msgEvent: [''], logType: 'LAST',  severity: 'INFO',  msgHeader: "Anwesende Personen", msgText: "", quit: false, mdIcon: 'how_to_reg', mdIconColor: '', fontColor: '', backgroundColor: ''},
+
+        //Kamera Bewegung erkannt
+        CAMERA_MOTION: {logType: 'All',  severity: 'INFO',  msgHeader: "Bewegung erkannt", msgText: "", quit: true, mdIcon: 'camera_alt', mdIconColor: '', fontColor: '', backgroundColor: ''},
 
         // Verpasster Anruf (des Tages)
-        MISSED_CALLS: {logType: 'LAST',  severity: 'INFO',  msgHeader: "Verpasste Anrufe", msgText: "", quit: false, mdIcon: 'call_missed', mdIconColor: '', fontColor: '', backgroundColor: ''},
+        MISSED_CALLS: {msgEvent: [''], logType: 'LAST',  severity: 'INFO',  msgHeader: "Verpasste Anrufe", msgText: "", quit: true, mdIcon: 'call_missed', mdIconColor: '', fontColor: '', backgroundColor: ''},
+
+        // Verpasster Anruf (des Tages)
+        LAST_CALL: {msgEvent: [''], logType: 'LAST',  severity: 'INFO',  msgHeader: "Letzter Anruf", msgText: "", quit: true, mdIcon: 'call', mdIconColor: '', fontColor: '', backgroundColor: ''},
 
         // Corono-Statistic 
-        CORONA_STATS_CASES: {logType: 'LAST',  severity: 'INFO',  msgHeader: "SARS-coV-2", msgText: "", quit: false, mdIcon: 'local_hospital', mdIconColor: '', fontColor: '', backgroundColor: ''},
+        CORONA_STATS_CASES: {msgEvent: [''], logType: 'LAST',  severity: 'INFO',  msgHeader: "SARS-coV-2", msgText: "", quit: false, mdIcon: 'local_hospital', mdIconColor: '', fontColor: '', backgroundColor: ''},
 
         // Temperatur
-        TEMPERATURE_INFO: {logType: 'LAST',  severity: 'INFO',  msgHeader: "Temperaturen", msgText: "", mdIcon: 'wb_sunny', quit: true, mdIconColor: '', fontColor: '', backgroundColor: ''},
+        TEMPERATURE_INFO: {msgEvent: [''], logType: 'LAST',  severity: 'INFO',  msgHeader: "Temperaturen", msgText: "", mdIcon: 'wb_sunny', quit: false, mdIconColor: '', fontColor: '', backgroundColor: ''},
 
+ 
 };
 
 //-----------------------------------------------------------------------
@@ -261,10 +313,41 @@ const MESSAGE_IDS = {
 
 const MESSAGE_DEFAULTS_BY_SEVERITY = {
 
-    INFO: {logType: 'ALL',  severity: 'INFO',  priority: 1000, msgHeader: "", msgText: "", quit: false, mdIcon: 'info', mdIconColor: 'mdui-blue', fontColor: '', backgroundColor: 'mdui-blue-bg'},
-    WARN: {logType: 'ALL',  severity: 'WARN',  priority: 2000, msgHeader: "", msgText: "", quit: false, mdIcon: 'warning', mdIconColor: 'mdui-amber', fontColor: '', backgroundColor: 'mdui-amber-bg'},
-    ERROR: {logType: 'ALL',  severity: 'ERROR', priority: 3000, msgHeader: "", msgText: "", quit: false, mdIcon: 'error', mdIconColor: 'mdui-orange', fontColor: '', backgroundColor: 'mdui-orange-bg'},
-    ALARM: {logType: 'ALL',  severity: 'ALARM', priority: 4000, msgHeader: "", msgText: "", quit: false, mdIcon: 'error', mdIconColor: 'mdui-red', fontColor: '', backgroundColor: 'mdui-red-bg'}
+    INFO: {msgEvent: [], logType: 'ALL',  severity: 'INFO',  priority: 1000, msgHeader: "", msgText: "", quit: false, mdIcon: 'info', mdIconColor: 'mdui-blue', fontColor: '', backgroundColor: 'mdui-blue-bg'},
+    WARN: {msgEvent: ['TELEGRAM'], logType: 'ALL',  severity: 'WARN',  priority: 2000, msgHeader: "", msgText: "", quit: false, mdIcon: 'warning', mdIconColor: 'mdui-amber', fontColor: '', backgroundColor: 'mdui-amber-bg'},
+    ERROR: {msgEvent: ['TELEGRAM'], logType: 'ALL',  severity: 'ERROR', priority: 3000, msgHeader: "", msgText: "", quit: false, mdIcon: 'error', mdIconColor: 'mdui-orange', fontColor: '', backgroundColor: 'mdui-orange-bg'},
+    ALARM: {msgEvent: ['TELEGRAM', 'EMAIL'], logType: 'ALL',  severity: 'ALARM', priority: 4000, msgHeader: "", msgText: "", quit: false, mdIcon: 'error', mdIconColor: 'mdui-red', fontColor: '', backgroundColor: 'mdui-red-bg'}
+};
+
+//-----------------------------------------------------------------------
+// Definition von Nachrichtenereignissen:
+// - Telegram (TELEGRAM-Adapter ist Voraussetzung)
+// - Email (Email-Adapter ist Voraussetzung)
+//
+// Nachrichtenereignissse werden mit einer Nachricht ausgelöst
+//-----------------------------------------------------------------------
+
+const MESSAGE_EVENTS = {
+	
+	// Telegram-Konfiguration
+	// - serviceName: 'TELEGRAM' (dieser Wert ist fix und steuert die Skriptlogik)
+	// - telegramInstanz: 'telegram.0'
+	// - telegramUser: optionale Vorgabe eines Benutzers. Sofern nicht vorgegeben, wird diese Einstellung vom Adapter übernommen.
+	// - telegramChatId: optionale Vorgabe einer ChatID. Sofern nicht vorgegeben, wird diese Einstellung vom Adapter übernommen.
+	//
+    
+	TELEGRAM: {serviceName: 'TELEGRAM', telegramInstance: 'telegram.0', telegramUser: '', telegramChatId: '', maxChar: 4000},
+	
+    
+	// Email-Konfiguration
+	// - serviceName: 'EMAIL' (dieser Wert ist fix und steuert die Skriptlogik)
+	// - emailInstance: Vorgabe der Email-Instance (in der Regel ist dies 'email.0').
+	// - emailFrom: optionale Vorgabe einer abweichenden Absenderadresse. Sofern nicht vorgegeben, wird diese Einstellung vom Adapter übernommen.
+	// - emailTo: optionale Vorgabe von Zieladressen. Sofern nicht vorgegeben, wird diese Einstellung vom Adapter übernommen.
+	
+    EMAIL: {serviceName: 'EMAIL', emailInstance: 'email.0', emailFrom: '', emailTo: [''] },
+    
+
 };
 
 
@@ -289,7 +372,7 @@ class MessageHandler {
     init() {
         // const
         this.DEBUG      = false;
-        this.VERSION    = '0.2/2020-04-04';
+        this.VERSION    = '0.4/2020-04-16';
         this.NAME       = 'MessageHandler';
 
 		// -----------------------  
@@ -328,7 +411,7 @@ class MessageHandler {
         this.states.push( { id:'messages.lastUpdate', common:{name:'messages last update', write:false, type: 'number', def:0 }} );
         this.states.push( { id:'messages.lastClear',  common:{name:'messages last clear', write:false, type: 'number', def:0  }} );
         this.states.push( { id:'messages.clearPressed',common:{name:'messages clear table/list', write:true, type:'boolean', def:false, role:'button' }} );
-
+		this.states.push( { id:'removeMsgID', common:{name:'Entfernen einer Nachricht über msgID', write:true, type:'string', def:'' }} );
         //-----------------------------------------------------------------------
         // Definition der Feldattribute, die aus der Nachrichtendefinition vererbt werden für die Ausgabe in VIS/HTML
         // Im Regelfall ist an dieser Systemeinstellung nichts zu ändern.
@@ -336,7 +419,7 @@ class MessageHandler {
 
         this.MESSAGE_FIELDS_OUTPUT = [
             "msgID", "msgHeader", "msgText", "countEvents",  "firstDate", "lastDate",
-            "logType",  "severity", "priority", "quit", "mdIcon", "mdIconColor", "fontColor", "backgroundColor"
+            "logType",  "severity", "priority", "quit", "msgEvent", "mdIcon", "mdIconColor", "fontColor", "backgroundColor"
         ];
 
         //-----------------------------------------------------------------------
@@ -388,7 +471,9 @@ class MessageHandler {
         this.subscribers.push( on( {id: this.STATE_PATH+'newMessage', change: 'any'}, obj => { this.onNewMessage(obj) } ));
 		this.subscribers.push( on( this.STATE_PATH+'messages.clearPressed', obj => { this.onClearPressed(obj) } ));
         this.subscribers.push( on( new RegExp( this.STATE_PATH+'*.filter' ), obj => { this.onFilter(obj) } ));
-			
+		this.subscribers.push( on( this.STATE_PATH+'removeMsgID', obj => { this.removeMsgID(obj) } ));
+		this.setStateDelayed ('removeMsgID', '', 2000);
+		
         this.onBuildHTML();
         
         return true;
@@ -396,6 +481,44 @@ class MessageHandler {
     
 	doStop() { return true; }
 	
+	
+	removeMsgID(obj) {
+        
+        if(this.DEBUG) log("removeMsgID()");
+
+        let instanceID = obj.state.val.toString();
+
+        if (instanceID=='') return;
+
+        //Filtern alle quittierbaren Nachrichten
+        for (var i = 0; i < this.messageList.length; i++) { 
+            this.messageList[i] = this.setAttributesInMessage(this.messageList[i], this.MESSAGE_FIELDS_OUTPUT);
+        }     
+
+        var indexMsg = 0;
+        while(indexMsg != -1) {
+            indexMsg = this.messageList.findIndex(function(a){ return (a.quit == true && a.lastDate == instanceID)});
+            if (indexMsg != -1) {
+                if(this.DEBUG) log("Nachricht wurde bereits protokolliert!");
+                
+                this.messageList.splice(indexMsg,1);
+            }
+        }   
+        
+        // Fortschreiben Nachricht in Datenstruktur
+        for (var i = 0; i < this.messageList.length; i++) { 
+            this.messageList[i] = this.setAttributesInMessage(this.messageList[i], this.MESSAGE_FIELDS_DATA);
+        }   
+        
+        this.setState('messages.json', JSON.stringify(this.messageList));
+        //this.setState('messages.lastClear', +new Date()  );
+        //this.setState('messages.count', 0);
+        //this.setState('messages.clearPressed', false);
+
+        this.onBuildHTML();
+
+    
+    }
     
     onClearPressed(obj) {
         
@@ -443,7 +566,6 @@ class MessageHandler {
         // if (!obj.newState.ack && obj.newState.val) {
             if(this.DEBUG) this.log('onNewMessage()');
 			
-			//FIXME let jsonMsg = {};
 			var jsonMsg = JSON.parse(this.getState('newMessage').val);
 			
             this.newMessage(jsonMsg);
@@ -490,6 +612,9 @@ class MessageHandler {
                 }
             }
         
+			// Auslösen Nachrichtenereignis (sofern definiert)
+			this.msgEvent(jsonMsg);
+		
             // Entfernen aller nicht relevanter Felder im JSON zur Speicherung in der Liste
             jsonMsg = this.setAttributesInMessage(jsonMsg, this.MESSAGE_FIELDS_DATA);
 
@@ -533,7 +658,6 @@ class MessageHandler {
      Es werden nur die Felder in der Nachricht aufbereitet, die in messageFields vorhanden sind
      */
     setAttributesInMessage(inputJsonMsg, messageFields) {
-
 
         if(this.DEBUG) log("setAttributesInMessage - input: " + JSON.stringify(inputJsonMsg));
 
@@ -627,12 +751,18 @@ class MessageHandler {
 
             jsonMsg.showCount = jsonMsg.countEvents > 0 ? "flex" : "none";
 
+            jsonMsg.showQuitable = jsonMsg.quit ? "flex" : "none";
+            
+
             // Font color
             jsonMsg.fontColor = this.getFontColor( '#000000'); 
 
             if(this.DEBUG) {
                 log("onBuildHTML(jsonMsg) Message Values: " + JSON.stringify(jsonMsg));
             } 
+            
+            // Auslösen Nachrichtenereignis (sofern definiert)
+			//FIXME this.msgEvent(jsonMsg);
 
             json.push( jsonMsg );
         }    
@@ -692,7 +822,7 @@ class MessageHandler {
 		const tmpList = {
 		row : 
 		`<div class="mdui-listitem mdui-center-v">
-            <div class="material-icons {mdIconColor}" style="width:40px;">&nbsp;{mdIcon}&nbsp;</div>
+            <div class="material-icons {mdIconColor}" style="width:32px;">{mdIcon}&nbsp;</div>
             <div class="mdui-label" style="width:calc(100% - 100px);">{msgHeader} 
                 <div class="mdui-subtitle">{msgText}</div>    
             </div>       
@@ -700,10 +830,18 @@ class MessageHandler {
                 <div class="{backgroundColor}" style="display:{showCount}; align-items: center;justify-content: center;width:20px;border-radius:1em;">{countEvents}</div>
             </div>            
             <div class="mdui-subtitle" tyle="width:40px;">            
-                <span style="font-size:0.9em; margin:4px; opacity:.8; text-align:right;">{lastDateDay}</span>
+                <span style="font-size:0.9em; margin:4px; opacity:.8; text-align:middle;">{lastDateDay}</span>
                 <br/>
-                <span style="font-size:0.9em; margin:4px; opacity:.8; text-align:right;">{lastDateTime}</span>
+                <span style="font-size:0.9em; margin:4px; opacity:.8; text-align:middle;">{lastDateTime}</span>
             </div>
+
+            <div class="mdui-subtitle" style="width:20px;">
+			
+			    <div class="mdui-button-outlined mdui-center" style="display:{showQuitable};">
+					<button onclick="vis.setValue('`+this.STATE_PATH+`removeMsgID','{lastDate}');"><i class="material-icons" style="font-size:0.9em">clear</i></button> 
+				</div>
+
+            </div>              
 		</div>`}
 
 		// build htmlTable and htmlList
@@ -722,11 +860,19 @@ class MessageHandler {
 
 			if (this.fitsFilter(':'+entry.severity + ':' + entry.datetime + ':' + entry.msgHeader + ':' + entry.msgText + ':',filter)) {
 
-				tr = tmpTable.row;    
-				for (let [key, value] of Object.entries(entry)) tr = tr.replace('{'+key+'}',value);
+				tr = tmpTable.row;   
+				for (let [key, value] of Object.entries(entry)) {
+                    var replace = '{'+key+'}';
+                    var re = new RegExp(replace,"g");
+                    tr = tr.replace(re, value);
+                }
 				htmlTable+=tr;
 				tr = tmpList.row;    
-				for (let [key, value] of Object.entries(entry)) tr = tr.replace('{'+key+'}',value);
+				for (let [key, value] of Object.entries(entry)) {
+                    var replace = '{'+key+'}';
+                    var re = new RegExp(replace,"g");
+                    tr = tr.replace(re, value);
+                }
 				htmlList+=tr;
 				count++;
 			}
@@ -797,6 +943,12 @@ class MessageHandler {
         if ( !this.existState(id) ) this.createState(id,value,undefined);
         else setState( this.STATE_PATH + id, value);
     }
+	
+	// like setStateDelayed(), but adds statepath to state_ID and checks if state exists, when not, creates it
+    setStateDelayed(id,value,delay) {
+        if ( !this.existState(id) ) this.createState(id,value,undefined);
+        else setState( this.STATE_PATH + id, value, delay);
+    }
     
     // like cresteState(), but adds statepath to state_ID and checks if state exists, when not, creates it
     createState(id,value,common) {
@@ -845,6 +997,41 @@ class MessageHandler {
     escapeRegExp(str) {
         return str.replace(/[.*+?^${}()|[\]\\]/g, '\\$&'); 
     }
+
+    /**
+     * Liefert sauberes String zurück: also '' anstelle von null, false, etc.
+     * @param {any}       inputVal
+     * @return {string}   Return string
+     */
+
+    clearStr(inputVal){
+        return (String(inputVal) !== 'undefined') ? String(inputVal) : '';
+    }
+
+    /**
+     * Checks if Array or String is not undefined, null or empty.
+     * 08-Sep-2019: added check for [ and ] to also catch arrays with empty strings.
+     * @param inputVar - Input Array or String, Number, etc.
+     * @return true if it is undefined/null/empty, false if it contains value(s)
+     * Array or String containing just whitespaces or >'< or >"< or >[< or >]< is considered empty
+     */
+    isLikeEmpty(inputVar) {
+        if (typeof inputVar !== 'undefined' && inputVar !== null) {
+            let strTemp = JSON.stringify(inputVar);
+            strTemp = strTemp.replace(/\s+/g, ''); // remove all whitespaces
+            strTemp = strTemp.replace(/\"+/g, "");  // remove all >"<
+            strTemp = strTemp.replace(/\'+/g, "");  // remove all >'<
+            strTemp = strTemp.replace(/\[+/g, "");  // remove all >[<
+            strTemp = strTemp.replace(/\]+/g, "");  // remove all >]<
+            if (strTemp !== '') {
+                return false;
+            } else {
+                return true;
+            }
+        } else {
+            return true;
+        }
+    }
     
     // wandelt eine Farbe im hex-Format (#000000) in ein RGB-Array[2] um
     hexToRGB(hex) {
@@ -882,6 +1069,135 @@ class MessageHandler {
             return "#000000";
     }
 	
+	
+	/**************************************************************************
+	* Senden der Nachricht über die verschiedenen Pushdienste
+	/* ************************************************************************* */
+	
+	msgEvent(jsonMsg) {
+        
+        if(this.isLikeEmpty(jsonMsg.msgEvent)) {
+            return;
+        }
+
+        // We are allowing multiple events for one msgEvent.
+        // msgEvent: ['TELEGRAM', 'EMAIL'],
+        let msgEventArray = [];
+        if (typeof jsonMsg.msgEvent == 'string') {
+            // If we just have one sensor as string
+            msgEventArray.push(jsonMsg.msgEvent);
+        } else {
+            msgEventArray = jsonMsg.msgEvent;
+        }
+
+        for (const msgEvent of msgEventArray) {
+            this.sendMessage(msgEvent, jsonMsg);
+        }
+	}
+	
+    // Senden eines Nachrichtenereignisses
+	sendMessage(msgEvent, jsonMsg) {
+
+        // Getting msgEvents Service Data
+
+        for(let defMsgEvent in MESSAGE_EVENTS) {    
+            if(defMsgEvent == msgEvent) {
+                
+                let serviceName = this.clearStr(MESSAGE_EVENTS[defMsgEvent]['serviceName']);
+
+                //----------------------------------------------------------
+                // TELEGRAM 
+                // {serviceName: 'TELEGRAM', telegramInstance: 'telegram.0', telegramUser: '', telegramChatId: '',count:0, delay:200, maxChar: 4000},
+                //----------------------------------------------------------
+
+                if(serviceName == 'TELEGRAM') {
+
+                    // Format TELEGRAM Message                    
+                    // Sending simple Markdown, because Markdown V2 does not support Unicode Characters?
+                    let telegramMsg = "*" + this.clearStr(jsonMsg.severity) + "*: " + this.clearStr(jsonMsg.msgHeader) + "\n" + this.clearStr(jsonMsg.msgText);
+                    telegramMsg=this.htmlToText(telegramMsg);
+                    
+                    let telegramInstance = this.clearStr(MESSAGE_EVENTS[defMsgEvent]['telegramInstance']);
+                    if (this.isLikeEmpty(telegramInstance) ) {
+                        this.logError("[" + defMsgEvent + "] Konfiguration Telegram ist unvollständig: telegramInstance ist nicht definiert!");
+                        return;
+                    }
+
+                    let telegramUser = this.clearStr(MESSAGE_EVENTS[defMsgEvent]['telegramUser']);
+
+                    if (telegramUser.length > 0) {
+                        sendTo(telegramInstance, {user: telegramUser, text: telegramMsg, parse_mode: 'Markdown'}   );
+                    }
+
+                    let telegramChatId = this.clearStr(MESSAGE_EVENTS[defMsgEvent]['telegramChatId']);
+
+                    if (telegramChatId.length > 0) {
+                        sendTo(telegramInstance, {ChatId: telegramChatId, text: telegramMsg, parse_mode: 'Markdown'}   );
+                    }
+
+                    if (!(telegramUser.length > 0 || telegramChatId.length > 0)) {
+                        if(this.DEBUG) this.log("sendTo(" + telegramInstance + ", {text:" + telegramMsg + ", parse_mode: 'Markdown'});");
+                        sendTo(telegramInstance, {text: telegramMsg, parse_mode: 'Markdown'}   );
+                    }
+
+                //----------------------------------------------------------
+                // EMAIL
+                // EMAIL: {serviceName: 'EMAIL', emailInstance: 'email.0', emailFrom: '', emailTo: [''] },
+                //----------------------------------------------------------
+
+                } else if(serviceName == 'EMAIL')  {
+
+                    let emailSubject = this.htmlToText(this.clearStr(jsonMsg.severity) + ": " + this.clearStr(jsonMsg.msgHeader));
+                    let emailText = this.htmlToText(this.clearStr(jsonMsg.severity) + ": " + this.clearStr(jsonMsg.msgHeader) + "<br><br>" + this.clearStr(jsonMsg.msgText));
+
+                    let emailInstance = this.clearStr(MESSAGE_EVENTS[defMsgEvent]['emailInstance']);
+                    let emailFrom = this.clearStr(MESSAGE_EVENTS[defMsgEvent]['emailFrom']);
+                    let emailTo = this.clearStr(MESSAGE_EVENTS[defMsgEvent]['emailTo']);
+
+                    if(emailTo.length > 0) {
+                        for (let a = 0; a < emailTo.length; a++) {
+                            
+                            let context =  {
+                                    text: emailText,
+                                    to: emailTo[a],
+                                    subject: emailSubject,
+                                    from: emailFrom
+                                    //attachments:[{path: '/tuer/alarm1.jpg', cid: "file1"},]
+                            };
+
+                            sendTo("email", "send", context);
+                            this.log("sendTo(email, send, " + JSON.stringify(context) + ');');
+                        }
+                    } else {
+                        let context =  {
+                                text: emailText,
+                                subject: emailSubject,
+                                from: emailFrom
+                                //attachments:[{path: '/tuer/alarm1.jpg', cid: "file1"},]
+                        };
+
+                        sendTo("email", "send", context);
+                        this.log("sendTo(email, send, " + JSON.stringify(context) + ');');
+                    }
+                
+
+                } else {
+                    this.logError("Nachrichtenereignis: [" + msgEvent + "] - Der Servicename [" + serviceName + "] ist nicht implementiert." );
+                }
+
+            }
+        }
+
+	}
+
+    //Helper Convert HTML to Text
+    htmlToText(text) {
+        text = text.replace("</br>", "\n");
+        text = text.replace("<br>", "\n");
+        text = text.replace(/<\/?[^>]+>/ig, " "); // Remove all HTML-Tags!!!
+        return text;
+    }
+
 	
     test() {
         
