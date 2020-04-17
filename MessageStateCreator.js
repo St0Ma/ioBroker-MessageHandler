@@ -9,6 +9,7 @@
  * Support: https://forum.iobroker.net/topic/32207/script-messagehandler-nachrichten-protokollieren-vis
  * ----------------------------------------------------
  * Change Log:
+ *  0.4  - Subscriptions nur noch für jeden Datenpunkt einmal, Fehlerausgabe bei fehlerhaften Trigger-DP
  *  0.3  - few code improvements
  *  0.2  - Initial Release
  * ---------------------------------------------------- 
@@ -55,7 +56,7 @@ Zur Konfiguration sind zwei Schritte erforderlich:
 
 const MESSAGE_EVENTS = [
 
-
+    
     // Anzahl geöffneter Fenster mit Räumen
     // Datenpunkte basieren auf Pitinis Fensterskript
     // GITHUB: https://github.com/Pittini/iobroker-Batterienauswertung
@@ -72,7 +73,7 @@ const MESSAGE_EVENTS = [
 		// Datenpunkte, die als Trigger überwacht werden (auf die bei Veränderung von Werten reagiert wird).
 		// Es kann ein Datenpunkt in der Notation '' angegeben werden, oder mehrere wie folgt im Beispiel in der Notation ['', '',...] 
 		
-        triggerDP: ['javascript.0.FensterUeberwachung.RoomsWithOpenWindows', 'javascript.0.FensterUeberwachung.WindowsOpen'],
+        triggerDP: ['javascript.0.FensterUeberwachung.RoomsWithOpenWindows'],
 		
 
 		// postMsg: Nachricht nur erzeugen, wenn ein vorgegebener Datenpunkt einer bestimmten Bedingung entspricht.
@@ -144,7 +145,7 @@ const MESSAGE_EVENTS = [
     // Forum IOBroker: https://forum.iobroker.net/topic/31676/vorlage-generische-batteriestands%C3%BCberwachung-vis-ausgabe
     {
         msgID: 'WINDOW_ISCLOSED_INFO', 
-        triggerDP: ['javascript.0.FensterUeberwachung.RoomsWithOpenWindows', 'javascript.0.FensterUeberwachung.WindowsOpen'],
+        triggerDP: ['javascript.0.FensterUeberwachung.RoomsWithOpenWindows'], // , 'javascript.0.FensterUeberwachung.WindowsOpen'
         postMsgDP: {dp:'javascript.0.FensterUeberwachung.WindowsOpen', comp: '==', val:0},
         removeMsgDP: {dp:'javascript.0.FensterUeberwachung.WindowsOpen', comp: '>', val:0}, // Nachricht enfernen, wenn die Bedingung eintritt
         msgText_1: {text: ''},
@@ -167,13 +168,13 @@ const MESSAGE_EVENTS = [
     // (Quelle: https://github.com/Mic-M/iobroker.presence-script-for-tr-064-community-adapter)
     {
         msgID: 'PERSONS_AVAILABLE_INFO', 
-        triggerDP: '0_userdata.0.Anwesenheit.Status.allPresentPersonsCount',
+        triggerDP: '0_userdata.0.Anwesenheit.Status.presentPersonsString',
         postMsgDP: {dp:'0_userdata.0.Anwesenheit.Status.allPresentPersonsCount'},
         msgText_1: {dp: '0_userdata.0.Anwesenheit.Status.presentPersonsString'},
         countEventsDP: '0_userdata.0.Anwesenheit.Status.allPresentPersonsCount'
     },
 
-    // Verpasster Anruf (des Tages)
+    // Verpasste Anrufe (des Tages)
     // Über TR-064-Community-Adapter
     {
         msgID: 'MISSED_CALLS', 
@@ -184,7 +185,21 @@ const MESSAGE_EVENTS = [
         countEventsDP: 'tr-064.0.calllists.missed.count'
     } ,
 
+    // letzter Anruf (des Tages)
+    // Über TR-064-Community-Adapter
+    {
+        msgID: 'LAST_CALL', 
+        triggerDP: 'tr-064.0.callmonitor.lastCall.callerName',
+        postMsgDP: {dp:'tr-064.0.callmonitor.lastCall.callerName'},
+        msgText_1: {text: 'Anrufer: '},
+        msgText_2: {dp: 'tr-064.0.callmonitor.lastCall.callerName'},
+        msgText_3: {text: '</br>Angerufen: '},
+        msgText_4: {dp: 'tr-064.0.callmonitor.lastCall.calleeName'},
+        countEventsDP: ''
+    } ,
+
     // Corona-Statistics
+    // über Corona-Adapter
     {
         msgID: 'CORONA_STATS_CASES', 
         triggerDP: ['coronavirus-statistics.0.Germany.cases', 'coronavirus-statistics.0.Germany.deaths'],
@@ -197,7 +212,7 @@ const MESSAGE_EVENTS = [
     },
 
     // Temperatur-Information
-    // Außen und Innentemperatur
+    // Außen und Innentemperatur über eigene Sensoren
     {
         msgID: 'TEMPERATURE_INFO', 
         triggerDP: ['deconz.0.Sensors.18.temperature', 'deconz.0.Sensors.3.temperature'],
@@ -205,14 +220,14 @@ const MESSAGE_EVENTS = [
         msgText_1: {text: '🌐 '},
         msgText_2: {dp: 'deconz.0.Sensors.18.temperature'},
         msgText_3: {text: ' °C'},
-        msgText_5: {text: '</br>🏠 '},
+        msgText_5: {text: ' 🏠 '},
         msgText_6: {dp: 'deconz.0.Sensors.3.temperature'},
         msgText_7: {text: ' °C'},
         countEvents: ''
     },
 
-    // Müllabholung
-    // Nächster Mülltermin
+    // Müllabholung - Nächster Mülltermin
+    // über Adapter trashschedule
     {
         msgID: 'NEXT_GARBAGE_INFO', 
         triggerDP: ['trashschedule.0.next.daysleft', 'trashschedule.0.next.types'],
@@ -224,8 +239,48 @@ const MESSAGE_EVENTS = [
         msgText_5: {text: ' Tage(n)'},
         countEvents: 'trashschedule.0.next.daysleft'
     },
+
+    // Gefrierschrank geöffnet
+    // über eigenen Sensor
+    {
+        msgID: 'FREEZER_DOOR_ISOPEN_INFO', 
+        triggerDP: 'deconz.0.Sensors.56.open',
+        postMsgDP: {dp:'deconz.0.Sensors.56.open', comp: '==', val:true},
+        removeMsgDP: {dp:'deconz.0.Sensors.56.open', comp: '==', val:false}, 
+        msgText_1: {text: ''},
+    },
+
+    // Kühlschrank geöffnet
+    // über eigenen Sensor
+    {
+        msgID: 'FRIDGE_DOOR_ISOPEN_INFO', 
+        triggerDP: 'deconz.0.Sensors.57.open',
+        postMsgDP: {dp:'deconz.0.Sensors.57.open', comp: '==', val:true},
+        removeMsgDP: {dp:'deconz.0.Sensors.57.open', comp: '==', val:false}, 
+        msgText_1: {text: ''},
+    },
+    
+
+    // DWD Wetterwarnung 
+    // Über DWD-Adapter, erfordert die Konfiguration von 3 Meldungen im Adapter
+    {
+        msgID: 'DWD_WARN', 
+        triggerDP: 'dwd.0.warning.severity',
+        postMsgDP: {dp:'dwd.0.warning.severity', comp: '!=', val:'0'},
+        removeMsgDP: {dp:'dwd.0.warning.severity', comp: '==', val:'0'},
+        msgText_1: {dp: 'dwd.0.warning.headline'},
+        msgText_2: {text: ' <br> '},
+        msgText_3: {dp: 'dwd.0.warning.description'},
+        msgText_4: {text: ' <br> '},
+        msgText_5: {dp: 'dwd.0.warning2.headline'},
+        msgText_6: {text: ' <br> '},
+        msgText_7: {dp: 'dwd.0.warning2.description'},
+        countEventsDP: ''
+    },
+
     
     // Wassersensor Werkzeugraum
+    // über eigenen Sensor
     {
         msgID: 'WATER_ALARM', 
         triggerDP: 'deconz.0.Sensors.21.water',
@@ -236,6 +291,7 @@ const MESSAGE_EVENTS = [
     },
 
     // Wassersensor Waschraum
+    // über eigenen Sensor
     {
         msgID: 'WATER_ALARM', 
         triggerDP: 'deconz.0.Sensors.34.water',
@@ -246,6 +302,7 @@ const MESSAGE_EVENTS = [
     },
 
     // Wassersensor Küche
+    // über eigenen Sensor
     {
         msgID: 'WATER_ALARM', 
         triggerDP: 'deconz.0.Sensors.6.water',
@@ -256,6 +313,7 @@ const MESSAGE_EVENTS = [
     },
 
     // Wassersensor großer Kellerraum
+    // über eigenen Sensor
     {
         msgID: 'WATER_ALARM', 
         triggerDP: 'deconz.0.Sensors.7.water',
@@ -265,6 +323,22 @@ const MESSAGE_EVENTS = [
         countEventsDP: ''
     },
     
+
+    // Internetverbindung Down Fritz!Box
+    // Prüfung über UPNP-Adapter 
+    // Github: https://github.com/Jey-Cee/ioBroker.upnp
+    // ioBroker-Forum: https://forum.iobroker.net/topic/14802/tutorial-vis-fritzbox-status-up-downloadanzeige
+    /*
+    {
+       msgID: 'INTERNET_DOWN', 
+       triggerDP: 'upnp.0.WANDevice_-_FRITZ!Box_6490_Cable_(kdg).WANDevice.WANCommonInterfaceConfig.GetCommonLinkProperties.NewPhysicalLinkStatus',
+       postMsgDP: {dp:'upnp.0.WANDevice_-_FRITZ!Box_6490_Cable_(kdg).WANDevice.WANCommonInterfaceConfig.GetCommonLinkProperties.NewPhysicalLinkStatus', comp: '==', val:'Down'},
+       //removeMsgDP: {dp:'upnp.0.WANDevice_-_FRITZ!Box_6490_Cable_(kdg).WANDevice.WANCommonInterfaceConfig.GetCommonLinkProperties.NewPhysicalLinkStatus', comp: '==', val:'Up'}, 
+       msgText_1: {text: 'Keine Internetverbindung'},
+       countEventsDP: ''
+    },
+    */
+
  ];
 
 // ------------------------------------------------------------------------------------- 
@@ -321,34 +395,44 @@ class MessageStateCreator {
 	// start the script/class
     doStart() {
  		
-         for(const MsgConf of MESSAGE_EVENTS) {
+        let triggerDPArray = [];
+        let createMsgDPArray = [];
 
+        for(const MsgConf of MESSAGE_EVENTS) {
+            let first = true;
             // We are allowing multiple trigger for one msgID.
             // triggerDP: [{dp: 'javascript.0.FensterUeberwachung.RoomsWithOpenWindows'}, {dp:'javascript.0.FensterUeberwachung.WindowsOpen'}],
-            let triggerDPArray = [];
+            // Ein Datenpunkt kann mehrfach als Trigger in verschiedenen MSGs auftreten, 
+            // daher wird der Trigger nur einmal angelegt, pro Datenpunkt
+           
             if (typeof MsgConf.triggerDP == 'string') {
                 // If we just have one sensor as string
-                triggerDPArray.push(MsgConf.triggerDP);
+                if(!triggerDPArray.includes(MsgConf.triggerDP)) {
+                    triggerDPArray.push(MsgConf.triggerDP);
+                    createMsgDPArray.push(MsgConf.triggerDP);
+                }
             } else {
-                triggerDPArray = MsgConf.triggerDP;
-            }
-
-            let first = true;
-            
-            for (const triggerDP of triggerDPArray) {
-
-                if(first) {
-                     // Mit Skriptstart die Nachrichten auslösen
-                    this.createMessage(triggerDP);
-                    first = false;
+                for (let key in MsgConf.triggerDP) {
+                    if(!triggerDPArray.includes(MsgConf.triggerDP[key])) {
+                        triggerDPArray.push(MsgConf.triggerDP[key]);
+                        if(first) {
+                            createMsgDPArray.push(MsgConf.triggerDP[key]);
+                            first = false;
+                        }
+                    }
                 }
                 
-                // subscriber erzeugen
-                this.subscribers.push( on( triggerDP, obj => { this.onChangeDP(obj) } ));
-            }
+            }  
+        }
+        
+        // Mit Skriptstart die Nachrichten auslösen
+        for (const msgDP of createMsgDPArray) {
+            this.createMessage(msgDP);
+        }
 
-            let postMsgDP = MsgConf['postMsgDP'].dp;         
-           
+        // subscriber erzeugen                    
+        for (const triggerDP of triggerDPArray) {
+            this.subscribers.push( on( triggerDP, obj => { this.onChangeDP(obj) } ));
         }
 
         return true;
@@ -419,7 +503,7 @@ class MessageStateCreator {
 
 			// Erweiterte Prüfung, ob die trigger-Datenpunkte vorhanden sind
             for (const triggerDP of triggerDPArray) {
-				if( this.isLikeEmpty(triggerDP)) { 
+				if( !this.isLikeEmpty(triggerDP)) { 
 					if(!this.existState(triggerDP)) {
                         this.logError('msgID: [' + MsgConf.msgID + '] Attribut: [triggerDP] Datenpunkt: [' + triggerDP + '] existiert nicht! Bitte Script-Konfiguration überprüfen.');
 						errorCount++;
@@ -603,13 +687,13 @@ class MessageStateCreator {
 						}
 
 						if(createMsg) {
-							this.log("postMessage(" + MsgConf.msgID + ", " + msgText + ", " + countEventsDP + ")");
+							this.log("postMessage('" + MsgConf.msgID + "', '" + msgText + "', " + countEventsDP + ")");
 							// Erzeugen der Nachricht über MessageHandler
 							postMessage(MsgConf.msgID, msgText, countEventsDP); 
 						}
 
 						if(removeMsg) {
-							this.log("removeMessage(" + MsgConf.msgID + ", " + msgText + ")");
+							this.log("removeMessage('" + MsgConf.msgID + "', '" + msgText + "')");
 							// Entfernen der Nachricht über MessageHandler
 							removeMessage(MsgConf.msgID, msgText); 
 
@@ -653,12 +737,13 @@ class MessageStateCreator {
  
 		if( val == undefined) {
 			createMsg = true;
-		} else if(comp == '==') {
+		} else if(comp == '==') {   
 			if( getState(dp).val == val) {
 				createMsg = true;
 			}
 		} else if(comp == '!=') {
-			if( getState(dp).val !== val) {
+
+			if( getState(dp).val != val) {
 				createMsg = true;
 			}
 		} else if(comp == '>') {
@@ -680,8 +765,7 @@ class MessageStateCreator {
 		}
 
         if(this.DEBUG) this.log('msgID: [' + MsgConf.msgID + '] Datenpunkt: [' + field + '] dp: [' + dp + '] State dp.val: [' + getState(dp).val + '] comp: [' + comp + '] val: [' + val + '] createMsg:' + createMsg);
-
-		
+	
 		return createMsg;
 	}
 
