@@ -22,6 +22,9 @@ Beispiele für Nachrichten:
 - Letzter Einwurf Post im Briefkasten
 - Nächster Müllabfuhrtermin mit Information zur Tonne
 - Ausgabe Temperatur / Luftfeuchte
+- DWD Wetterwarnung
+- Bewegung erkannt
+- Internetverbindung Offline
 - Termine des Tages
 - Termine morgen
 - ...
@@ -42,7 +45,16 @@ Beispiele für Nachrichten:
    - einfache HTML-Tabelle (ohne Schnickschnack)
    - Material Design CSS 2.0 Card (Voraussetzung ist die Installation des ["Material Design CSS 2.0"](https://github.com/Uhula/ioBroker-Material-Design-Style)
 
-- Nachrichten können (optional) in VIS global quittiert werden.
+- Nachrichten können (optional) in VIS global oder auch einzeln quittiert werden.
+
+
+
+- Mit einer Nachricht können ein oder mehrere Ereignisse ausgelöst werden:
+
+  - Senden einer Email
+  - Senden einer Telegram-Pushnachricht
+
+
 
 - Nachrichtendefinition: Nachrichten sind die Grundlage der Meldungen, die später aus Skripten ausgelöst werden.
     Eine Nachricht trägt eine eindeutige ID und Eigenschaften, die die Verarbeitung der Nachricht oder das Verhalten 
@@ -76,10 +88,20 @@ Beispiele für Nachrichten:
 Zur Konfiguration sind zwei Schritte erforderlich:
 
 1. Die Grundkonfiguration erfolgt über die Festlegung von MESSAGE-IDs (Nachrichten-Ids) in der Konstante MESSAGE_IDS
-    im Javascript "MessageHandler". 
-    Optional kann in der Funktion MessageHandler|doInit() eine Anpassung der KONFIGURATION vorgenommen werden.
+    im Javascript "MessageHandler".  Optional kann mit den Nachrichten auch ein sogenannten Nachrichtenereignisse ausgelöst 
+  werden (z.B. Senden einer Email oder TELEGRAM-Pushnachricht).
+  Hierfür muss den Nachrichten ein sogenanntes msgEvent zugeordnet werden, dass über 
+  die Konstante MESSAGE_EVENT unten im Skript konfiguriert wird.  Optional kann in der Funktion MessageHandler|doInit() 
+  eine Anpassung der KONFIGURATION vorgenommen werden.
 
 2. Über das Javascript "MessageStateCreator" können Datenpunkte überwacht werden
    und Nachrichten automatisiert ausgelöst werden.
    Die Konfiguration erfolgt hierfür im Javascript "MessageStateCreator" über die Konstante MESSAGE_EVENTS.
    Im Javascript selbst sind auch Beispiele enthalten, wie die Konfiguration durchgeführt wird.
+
+# Versionshistorie
+
+ * 0.4  - Ergänzung, um Nachrichtenereignissse (Telegram und Email)
+        - Ergänzung, um Nachrichten in VIS zu quittieren.
+ *  0.3  - Code Optimierung
+ *  0.2  - Initiale Veröffentlichung
