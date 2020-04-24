@@ -9,6 +9,7 @@
  * Support: https://forum.iobroker.net/topic/32207/script-messagehandler-nachrichten-protokollieren-vis
  * ----------------------------------------------------
  * Change Log:
+ *  0.5  - Neues Attribut visView: VIS-Viewname auf dem über die Message verlinkt werden kann.
  *  0.4  - Ergänzung, um Nachrichtenereignissse (Telegram und Email)
  *       - Ergänzung, um Nachrichten in VIS zu quittieren.
  *  0.3  - Code Optimierung
@@ -46,10 +47,120 @@
  - Termine morgen
 
 *******************************************************************************
- * Auslösen / Löschen von Nachrichten
+ * Installation
 *******************************************************************************
 
- Über das globale Javascript "MessageFunctions" stehen zwei Methoden 
+ 1. Den Expertenmodus im Menüpunkt Skripte aktivieren.
+    Das Javascript "MessageGlobal" als globales Script installieren und starten.
+
+ 2. Das Javascript "MessageHandler" serverseitiges Script installieren und starten-5 Sek warten-stoppen-starten. 
+    Beim 1.Start werden die notwendigen States unter STATE_PATH = '0_userdata.0.messageHandler.' 
+    erzeugt. Erst beim 2.Start instanziiert das Script die Event-Handler und läuft dann.
+
+ 3. Das Javascript "MessageStateCreator" installieren und starten (optional)
+
+*******************************************************************************
+ * Basis-Konfiguration
+*******************************************************************************
+
+ Zur Konfiguration sind zwei Schritte erforderlich:
+
+ 1. Die Grundkonfiguration erfolgt über die Festlegung von MESSAGE-IDs (Nachrichten-Ids)
+  im Javascript "MessageHandler". 
+
+  Optional kann mit den Nachrichten auch ein sogenannten Nachrichtenereignisse ausgelöst 
+  werden (z.B. Senden einer Email oder TELEGRAM-Pushnachricht).
+  Hierfür muss den Nachrichten ein sogenanntes msgEvent zugeordnet werden, dass über 
+  die Konstante MESSAGE_EVENT unten im Skript konfiguriert wird.
+  
+  Optional kann in der Funktion MessageHandler|doInit() 
+  eine Anpassung der KONFIGURATION vorgenommen werden.
+
+ 2. Über das Javascript "MessageStateCreator" können Datenpunkte überwacht werden 
+   und Nachrichten automatisiert ausgelöst werden. Die Konfiguration erfolgt hierfür im Javascript "MessageStateCreator".
+ 
+
+*******************************************************************************
+ * Definition of MESSAGE-IDs (Nachrichten-Ids)
+ ******************************************************************************
+
+ Fehlernachrichten sind die Grundlage der Meldungen, die später aus Skripten ausgelöst werden.
+ Eine Fehlernachricht trägt eine eindeutige ID und Eigenschaften, die die Verarbeitung der Nachricht oder das Verhalten der Ausgabe steuern.
+ Die Idee ist es, das Verhalten der Steuerung und Ausgabe zu entkoppeln, vom eigentlichen Logging Prozess!
+
+ Die Konfiguration erfolgt über die Konstante MESSAGE_IDS (siehe unten im Skript).
+ 
+ Fehlernachrichten haben die folgenden Eigenschaften:
+ 
+ - Erster Teil (z.B. "MSG_INFO"): Definition der eindeutigen MESSAGE-ID (Nachrichten-ID). Als Konvention sollte diese immer MSG_<ID> tragen.
+
+ - logType: ALL = Protokollierung jeder Nachricht einzeln
+            LAST = Protokollierung nur der letzten Nachricht (vorhergehende Nachrichten mit gleicher MESSAGE_ID werden gelöscht).
+                   Dies eignet sich beispielsweise für die Protokollierung des letzten Briefkasteneinwurfs, des letzten Anrufs etc.
+
+ - severity: Einstufung der Nachricht in Zustände (Alarm, Fehler, Warnung, Information). 
+             Es sind folgende Zuordnungen möglich:
+             ALARM = Alarm
+             ERROR = Fehler
+             WARN  = Warnung
+             INFO  = Info
+
+    Über die Severity können separate Vorgaben aller Eigenschaften einer Nachricht gemacht werden (siehe nächsten Abschnitt).
+    Somit können Standardeinstellungen auf der Severity-Ebene definiert werden, die für jede Nachricht greifen, 
+    sofern Sie in der Nachricht nicht übersteuert werden.
+
+ - priority: Priorität der Nachricht innerhalb aller anderen Nachrichten. Bestimmt die Sortierreihenfolge für die Ausgabe.
+             Nachrichten gleicher Priorität werden nach Timestamp sortiert (neueste oben).
+             In der Regel wird die Prorität über die Severitys gesteuert und nicht für jede Nachricht separat festgelegt.
+
+ - msgEvent: Definition von Nachrichtenereignissen.  Nachrichtenereignissse werden mit einer Nachricht ausgelöst.
+             Es können mit einer Nachricht mehrere Nachrichtenereignisse ausgelöst werden (z.B. Email und Telegram-Pushnachricht).
+
+             Es sind folgende Ereignisse konfigurierbar: 
+             - Telegram (TELEGRAM-Adapter ist Voraussetzung)
+             - Email (Email-Adapter ist Voraussetzung)
+             Die Konfiguration der Nachrichtenereignisse erfolgt unten im Skript in der Konstante MESSAGE_EVENTS.
+
+
+ - msgHeader: Kopftext der Nachricht. Hier kann ein Standardtext definiert werden.
+
+ - msgText: Text der Nachricht. im Nachrichtentext sind variable Parameter &1, &2 etc. möglich, die mit der Ausführung der Nachricht ersetzt werden.
+
+ - quit: Die Eigenschaft bestimmt, ob die Nachricht in der VIS-Oberfläche für das Material Design Widget löschbar ist (true)
+
+ - visView: VIS-Viewname auf dem über die Message verlinkt werden kann.
+
+ - mdIcon: Material Design Icon-Name
+
+ - mdIconColor: Material Design Farbcode für das Icon 
+ 
+ - fontColor: HTML-Farbcode für die Schriftfarbe der HTML-Ausgabe (aktuell nicht in der VIS-Ausgabe implementiert)
+ 
+ - backgroundColor: HTML-Farbcode für die Hintergrundfarbe in der HTML-Ausgabe (aktuell nicht in der VIS-Ausgabe implementiert)
+
+*******************************************************************************
+ * Definition of MESSAGE_DEFAULTS_BY_SEVERITY (Standardeinstellungen von Nachrichten für SEVERITYs)
+ ******************************************************************************
+
+ Über die Severity können separate Vorgaben aller Eigenschaften einer Nachricht gemacht werden.
+ Somit können Standardeinstellungen auf der Severity-Ebene definiert werden, die für jede Nachricht greifen, 
+ sofern Sie in der Nachrichten-Definition über die Konstante MESSAGE_IDS nicht übersteuert werden.
+
+ Die Konfiguration erfolgt über die Konstante MESSAGE_DEFAULTS_BY_SEVERITY (siehe unten im Skript).
+ Es können prinzipiell die gleichen Eigenschaften gesteuert werden, wie für die Nachrichten-Definition selbst.
+
+*******************************************************************************
+ * Automatisches Auslösen / Löschen von Nachrichten
+*******************************************************************************
+
+ Das automatische Auslösen/Löschen von Nachrichten kann über das zusätzliche Skript
+ "MessageStateCreator" erfolgen. Die Dokumentation diesbezüglich ist dort zu finden.
+
+*******************************************************************************
+ * Javascript-Funktionen zum Auslösen / Löschen von Nachrichten
+*******************************************************************************
+
+ Über das globale Javascript "MessageGlobal" stehen zwei Methoden 
  für das Erzeugen/löschen von Nachrichten zur Verfügung.
 
  Die Funktion postMessage dient dem Erzeugen von Nachrichten
@@ -88,115 +199,14 @@
     
     removeMessage("DOOR_ISOPEN_INFO");
 
-*******************************************************************************
- * Definition of MESSAGE-IDs (Nachrichten-Ids)
- ******************************************************************************
-
- Fehlernachrichten sind die Grundlage der Meldungen, die später aus Skripten ausgelöst werden.
- Eine Fehlernachricht trägt eine eindeutige ID und Eigenschaften, die die Verarbeitung der Nachricht oder das Verhalten der Ausgabe steuern.
- Die Idee ist es, das Verhalten der Steuerung und Ausgabe zu entkoppeln, vom eigentlichen Logging Prozess!
-
- Die Konfiguration erfolgt über die Konstante MESSAGE_IDS (siehe unten im Skript).
- 
- Fehlernachrichten haben die folgenden Eigenschaften:
- 
- - Erster Teil (z.B. "MSG_INFO"): Definition der eindeutigen MESSAGE-ID (Nachrichten-ID). Als Konvention sollte diese immer MSG_<ID> tragen.
-
- - logType: ALL = Protokollierung jeder Nachricht einzeln
-            LAST = Protokollierung nur der letzten Nachricht (vorhergehende Nachrichten mit gleicher MESSAGE_ID werden gelöscht).
-                   Dies eignet sich beispielsweise für die Protokollierung des letzten Briefkasteneinwurfs, des letzten Anrufs etc.
-
- - severity: Einstufung der Nachricht in Zustände (Alarm, Fehler, Warnung, Information). 
-             Es sind folgende Zuordnungen möglich:
-             ALARM = Alarm
-             ERROR = Fehler
-             WARN  = Warnung
-             INFO  = Info
-
-    Über die Severity können separate Vorgaben aller Eigenschaften einer Nachricht gemacht werden (siehe nächsten Abschnitt).
-    Somit können Standardeinstellungen auf der Severity-Ebene definiert werden, die für jede Nachricht greifen, 
-    sofern Sie in der Nachricht nicht übersteuert werden.
-
- - priority: Priorität der Nachricht innerhalb aller anderen Nachrichten. Bestimmt die Sortierreihenfolge für die Ausgabe.
-             Nachrichten gleicher Priorität werden nach Timestamp sortiert (neueste oben).
-             In der Regel wird die Prorität über die Severitys gesteuert und nicht für jede Nachricht separat festgelegt.
-
-- msgEvent: Definition von Nachrichtenereignissen.  Nachrichtenereignissse werden mit einer Nachricht ausgelöst.
-            Es können mit einer Nachricht mehrere Nachrichtenereignisse ausgelöst werden (z.B. Email und Telegram-Pushnachricht).
-
-            Es sind folgende Ereignisse konfigurierbar: 
-            - Telegram (TELEGRAM-Adapter ist Voraussetzung)
-            - Email (Email-Adapter ist Voraussetzung)
-            Die Konfiguration der Nachrichtenereignisse erfolgt unten im Skript in der Konstante MESSAGE_EVENTS.
-
-
- - msgHeader: Kopftext der Nachricht. Hier kann ein Standardtext definiert werden.
-
- - msgText: Text der Nachricht. im Nachrichtentext sind variable Parameter &1, &2 etc. möglich, die mit der Ausführung der Nachricht ersetzt werden.
-
- - quit: Die Eigenschaft bestimmt, ob die Nachricht in der VIS-Oberfläche für das Material Design Widget löschbar ist (true)
-
- - mdIcon: Material Design Icon-Name
-
- - mdIconColor: Material Design Farbcode für das Icon 
- 
- - fontColor: HTML-Farbcode für die Schriftfarbe der HTML-Ausgabe (aktuell nicht in der VIS-Ausgabe implementiert)
- 
- - backgroundColor: HTML-Farbcode für die Hintergrundfarbe in der HTML-Ausgabe (aktuell nicht in der VIS-Ausgabe implementiert)
-
-*******************************************************************************
- * Definition of MESSAGE_DEFAULTS_BY_SEVERITY (Standardeinstellungen von Nachrichten für SEVERITYs)
- ******************************************************************************
-
- Über die Severity können separate Vorgaben aller Eigenschaften einer Nachricht gemacht werden.
- Somit können Standardeinstellungen auf der Severity-Ebene definiert werden, die für jede Nachricht greifen, 
- sofern Sie in der Nachrichten-Definition über die Konstante MESSAGE_IDS nicht übersteuert werden.
-
- Die Konfiguration erfolgt über die Konstante MESSAGE_DEFAULTS_BY_SEVERITY (siehe unten im Skript).
- Es können prinzipiell die gleichen Eigenschaften gesteuert werden, wie für die Nachrichten-Definition selbst.
-
-
-*******************************************************************************
- * Installation
-*******************************************************************************
-
- 1. Das Javascript "MessageGlobal" als globales Script installieren und starten.
-
- 2. Das Javascript "MessageHandler" serverseitiges Script installieren und starten-5 Sek warten-stoppen-starten. 
- Beim 1.Start werden die notwendigen States unter STATE_PATH = '0_userdata.0.messageHandler.' 
- erzeugt. Erst beim 2.Start instanziiert das Script die Event-Handler und läuft dann.
-
- 3. Das Javascript "MessageStateCreator" installieren und starten (optional)
-
-*******************************************************************************
- * Basis-Konfiguration
-*******************************************************************************
-
- Zur Konfiguration sind zwei Schritte erforderlich:
-
- 1. Die Grundkonfiguration erfolgt über die Festlegung von MESSAGE-IDs (Nachrichten-Ids)
-  im Javascript "MessageHandler". 
-
-  Optional kann mit den Nachrichten auch ein sogenannten Nachrichtenereignisse ausgelöst 
-  werden (z.B. Senden einer Email oder TELEGRAM-Pushnachricht).
-  Hierfür muss den Nachrichten ein sogenanntes msgEvent zugeordnet werden, dass über 
-  die Konstante MESSAGE_EVENT unten im Skript konfiguriert wird.
-  
-  Optional kann in der Funktion MessageHandler|doInit() 
-  eine Anpassung der KONFIGURATION vorgenommen werden.
-
- 2. Über das Javascript "MessageStateCreator" können Datenpunkte überwacht werden 
-   und Nachrichten automatisiert ausgelöst werden. Die Konfiguration erfolgt hierfür im Javascript "MessageStateCreator".
- 
-
-
 /*******************************************************************************
  * States
 *******************************************************************************
 
 Unter dem STATE_PATH (Default STATE_PATH ist '0_userdata.0.messageHandler.') werden die folgenden States erzeugt:
 version : Script-Version, wird verwendet um Script-Updates zu erkennen
-updatePressed : auf true setzen, wenn ein table/list update außerhalb des Intervals erfolgen soll
+newMessage : Datenpunkt über den neue Nachrichten / Löschnachrichten ausgelöst werden. 
+removeMsgID : Datenpunkt für das einzelne gezielte Löschen von Nachrichten über das VIS Widget
 
 * messages.table        : enthält die table-HTML für ein basic-string (unescaped) Widget
 * messages.list         : enthält die list-HTML für ein basic-string (unescaped) Widget
@@ -227,10 +237,10 @@ const MESSAGE_IDS = {
         //---------------------------------------------
 
         // Alarmanlage
-        HOUSE_ALARM: {msgEvent: [''], logType: 'LAST',  severity: 'ALARM',  msgHeader: "Alarm im Haus", msgText: "", quit: false, mdIcon: 'notification_important', mdIconColor: '', fontColor: '', backgroundColor: ''},
+        HOUSE_ALARM: {msgEvent: [''], logType: 'LAST',  severity: 'ALARM',  msgHeader: "Alarm im Haus", msgText: "", quit: false, visView: 'pageSicherheit', mdIcon: 'notification_important', mdIconColor: '', fontColor: '', backgroundColor: ''},
 
         // Wasseralarm
-        WATER_ALARM: {msgEvent: [''], logType: 'LAST',  severity: 'ALARM',  msgHeader: "Wasseralarm", msgText: "", quit: false, mdIcon: 'waves', mdIconColor: '', fontColor: '', backgroundColor: ''},
+        WATER_ALARM: {msgEvent: [''], logType: 'LAST',  severity: 'ALARM',  msgHeader: "Wasseralarm", msgText: "", quit: false, visView: 'pageSicherheit', mdIcon: 'waves', mdIconColor: '', fontColor: '', backgroundColor: ''},
 
         //Internet Down
         INTERNET_DOWN: {msgEvent: [''], logType: 'All',  severity: 'ALARM',  msgHeader: "Internetverbindung Offline", msgText: "", quit: true, mdIcon: 'error', mdIconColor: '', fontColor: '', backgroundColor: ''},
@@ -245,9 +255,13 @@ const MESSAGE_IDS = {
         // WARN-Meldungen
         //---------------------------------------------
 
-        // Offene Fenster
-        WINDOW_ISOPEN_INFO: {msgEvent: [''], logType: 'LAST',  severity: 'WARN',  msgHeader: "Fenster geöffnet", msgText: "Bitte Fenster schließen", quit: false, mdIcon: 'tab', mdIconColor: '', fontColor: '', backgroundColor: ''},
+        // Offene Fenster Gesamt
+        WINDOW_ISOPEN_INFO: {msgEvent: [''], logType: 'LAST',  severity: 'WARN',  msgHeader: "Fenster geöffnet", msgText: "Bitte Fenster schließen", quit: false, visView: 'pageSicherheit',  mdIcon: 'tab', mdIconColor: '', fontColor: '', backgroundColor: ''},
 
+        // Fenster länger als x Minuten geöffnet
+        WINDOW_ISLONGEROPEN_GARAGE: {msgEvent: [''], logType: 'LAST',  severity: 'WARN',  msgHeader: "Garage", msgText: "Bitte Fenster schließen", quit: false, mdIcon: 'tab', mdIconColor: '', fontColor: '', backgroundColor: ''},
+        WINDOW_ISLONGEROPEN_HAUS: {msgEvent: [''], logType: 'LAST',  severity: 'WARN',  msgHeader: "Haustür", msgText: "Bitte Fenster schließen", quit: false, mdIcon: 'tab', mdIconColor: '', fontColor: '', backgroundColor: ''},
+    
         // Offene Türen
         DOOR_ISOPEN_INFO: {msgEvent: [''], logType: 'LAST',  severity: 'WARN',  msgHeader: "Fenster geöffnet", msgText: "Bitte Fenster schließen", quit: false, mdIcon: 'meeting_room', mdIconColor: '', fontColor: '', backgroundColor: ''},
 
@@ -258,7 +272,7 @@ const MESSAGE_IDS = {
         CALENDAR_EVENTS_TOMORROW: {msgEvent: [''], logType: 'LAST',  severity: 'WARN',  msgHeader: "Morgige Termine", msgText: "", quit: false, mdIcon: 'date_range', mdIconColor: '', fontColor: '', backgroundColor: ''},
 
         // Deutscher Wetter Dienst Warnung
-        DWD_WARN: {msgEvent: [''], logType: 'LAST',  severity: 'WARN',  msgHeader: "Wetterwarnung", msgText: "", quit: false, mdIcon: 'track_changes', mdIconColor: '', fontColor: '', backgroundColor: ''},
+        DWD_WARN: {msgEvent: [''], logType: 'LAST',  severity: 'WARN',  msgHeader: "Wetterwarnung", msgText: "", quit: true, visView: 'pageKlima', mdIcon: 'track_changes', mdIconColor: '', fontColor: '', backgroundColor: ''},
 
 
         //---------------------------------------------
@@ -272,36 +286,50 @@ const MESSAGE_IDS = {
         OPEN_WINDOW_INFO: {msgEvent: [''], logType: 'LAST',  severity: 'INFO',  msgHeader: "Lüftungserinnerung", msgText: "Bitte Fenster öffnen", quit: false, mdIcon: 'opacity', mdIconColor: '', fontColor: '', backgroundColor: ''},
 
         // Angeschaltete Lichter
-        LIGHTS_ON_INFO: {msgEvent: [''], logType: 'LAST',  severity: 'INFO',  msgHeader: "Licht angeschaltet", msgText: "", quit: false, mdIcon: 'highlight', mdIconColor: '', fontColor: '', backgroundColor: ''},
+        LIGHTS_ON_INFO: {msgEvent: [''], logType: 'LAST',  severity: 'INFO',  msgHeader: "Licht angeschaltet", msgText: "", quit: false, visView: 'pageLichter', mdIcon: 'highlight', mdIconColor: '', fontColor: '', backgroundColor: ''},
         
         // Aktiv Steckdosen
-        PLUGS_ON_INFO: {msgEvent: [''], logType: 'LAST',  severity: 'INFO',  msgHeader: "Steckdosen angeschaltet", msgText: "", quit: false, mdIcon: '', mdIconColor: '', fontColor: '', backgroundColor: ''},
+        PLUGS_ON_INFO: {msgEvent: [''], logType: 'LAST',  severity: 'INFO',  msgHeader: "Steckdosen angeschaltet", msgText: "", quit: false, visView: '',mdIcon: '', mdIconColor: '', fontColor: '', backgroundColor: ''},
 
         // Post im Briefkasten
         LAST_POSTENTRACE_INFO: {msgEvent: ['TELEGRAM'], logType: 'LAST',  severity: 'INFO',  msgHeader: "Briefkasten", msgText: "Neue Post im Briefkasten!", mdIcon: 'drafts', quit: true, mdIconColor: '', fontColor: '', backgroundColor: ''},
 
         // Müllabfuhr-Termine
-        NEXT_GARBAGE_INFO: {msgEvent: [''], logType: 'LAST',  severity: 'INFO',  msgHeader: "Müll", msgText: "Tonne: &1, am &2 ", quit: true, mdIcon: 'delete',  mdIconColor: '', fontColor: '', backgroundColor: ''},
+        NEXT_GARBAGE_INFO: {msgEvent: [''], logType: 'LAST',  severity: 'INFO',  msgHeader: "Müll", msgText: "Tonne: &1, am &2 ", quit: true, visView: '', mdIcon: 'delete',  mdIconColor: '', fontColor: '', backgroundColor: ''},
 
         // Anwesende Personen
-        PERSONS_AVAILABLE_INFO: {msgEvent: [''], logType: 'LAST',  severity: 'INFO',  msgHeader: "Anwesende Personen", msgText: "", quit: false, mdIcon: 'how_to_reg', mdIconColor: '', fontColor: '', backgroundColor: ''},
+        PERSONS_AVAILABLE_INFO: {msgEvent: [''], logType: 'LAST',  severity: 'INFO',  msgHeader: "Anwesende Personen", msgText: "", quit: false, visView: '', mdIcon: 'how_to_reg', mdIconColor: '', fontColor: '', backgroundColor: ''},
 
         //Kamera Bewegung erkannt
-        CAMERA_MOTION: {logType: 'All',  severity: 'INFO',  msgHeader: "Bewegung erkannt", msgText: "", quit: true, mdIcon: 'camera_alt', mdIconColor: '', fontColor: '', backgroundColor: ''},
+        CAMERA_MOTION: {logType: 'All',  severity: 'INFO',  msgHeader: "Bewegung erkannt", msgText: "", quit: true, visView: '', mdIcon: 'camera_alt', mdIconColor: '', fontColor: '', backgroundColor: ''},
 
         // Verpasster Anruf (des Tages)
-        MISSED_CALLS: {msgEvent: [''], logType: 'LAST',  severity: 'INFO',  msgHeader: "Verpasste Anrufe", msgText: "", quit: true, mdIcon: 'call_missed', mdIconColor: '', fontColor: '', backgroundColor: ''},
+        MISSED_CALLS: {msgEvent: [''], logType: 'LAST',  severity: 'INFO',  msgHeader: "Verpasste Anrufe", msgText: "", quit: true, visView: 'pageKommunikation', mdIcon: 'call_missed', mdIconColor: '', fontColor: '', backgroundColor: ''},
 
         // Verpasster Anruf (des Tages)
-        LAST_CALL: {msgEvent: [''], logType: 'LAST',  severity: 'INFO',  msgHeader: "Letzter Anruf", msgText: "", quit: true, mdIcon: 'call', mdIconColor: '', fontColor: '', backgroundColor: ''},
+        LAST_CALL: {msgEvent: [''], logType: 'LAST',  severity: 'INFO',  msgHeader: "Letzter Anruf", msgText: "", quit: true, visView: 'pageKommunikation', mdIcon: 'call', mdIconColor: '', fontColor: '', backgroundColor: ''},
 
         // Corono-Statistic 
-        CORONA_STATS_CASES: {msgEvent: [''], logType: 'LAST',  severity: 'INFO',  msgHeader: "SARS-coV-2", msgText: "", quit: false, mdIcon: 'local_hospital', mdIconColor: '', fontColor: '', backgroundColor: ''},
+        CORONA_STATS_CASES: {msgEvent: [''], logType: 'LAST',  severity: 'INFO',  msgHeader: "SARS-coV-2", msgText: "", quit: false, visView: '', mdIcon: 'local_hospital', mdIconColor: '', fontColor: '', backgroundColor: ''},
 
         // Temperatur
-        TEMPERATURE_INFO: {msgEvent: [''], logType: 'LAST',  severity: 'INFO',  msgHeader: "Temperaturen", msgText: "", mdIcon: 'wb_sunny', quit: false, mdIconColor: '', fontColor: '', backgroundColor: ''},
+        TEMPERATURE_INFO: {msgEvent: [''], logType: 'LAST',  severity: 'INFO',  msgHeader: "Temperaturen", msgText: "", mdIcon: 'wb_sunny', quit: false, visView: 'pageKlima', mdIconColor: '', fontColor: '', backgroundColor: ''},
 
- 
+        // Sonos
+        SONOS_INFO: {msgEvent: [''], logType: 'LAST',  severity: 'INFO',  msgHeader: "Sonos Küche", msgText: "", mdIcon: 'audiotrack', quit: false, visView: 'pageMultimedia', mdIconColor: '', fontColor: '', backgroundColor: ''},
+
+        // Logitech Harmony Info
+        HARMONY_INFO: {msgEvent: [''], logType: 'LAST',  severity: 'INFO',  msgHeader: "Wohnzimmer Multimedia", msgText: "", mdIcon: 'settings_remote', quit: false, visView: 'pageMultimedia', mdIconColor: '', fontColor: '', backgroundColor: ''},
+
+        //Spritpreis-Info
+        TANK_INFO: {logType: 'LAST',  severity: 'INFO',  msgHeader: "Spritpreis", msgText: "", quit: true, mdIcon: 'time_to_leave', mdIconColor: '', fontColor: '', backgroundColor: ''},
+
+       //Update ioBroker
+        UPDATE_INFO: {logType: 'LAST',  severity: 'INFO',  msgHeader: "Update ioBroker", msgText: "", quit: true, mdIcon: 'cached', mdIconColor: '', fontColor: '', backgroundColor: ''},
+
+        // Gäste WLAN
+        GUEST_WIFI: {msgEvent: [''], logType: 'LAST',  severity: 'INFO',  msgHeader: "WLAN", msgText: "", quit: false, mdIcon: 'wifi', mdIconColor: '', fontColor: '', backgroundColor: ''},
+
 };
 
 //-----------------------------------------------------------------------
@@ -314,7 +342,7 @@ const MESSAGE_IDS = {
 const MESSAGE_DEFAULTS_BY_SEVERITY = {
 
     INFO: {msgEvent: [], logType: 'ALL',  severity: 'INFO',  priority: 1000, msgHeader: "", msgText: "", quit: false, mdIcon: 'info', mdIconColor: 'mdui-blue', fontColor: '', backgroundColor: 'mdui-blue-bg'},
-    WARN: {msgEvent: ['TELEGRAM'], logType: 'ALL',  severity: 'WARN',  priority: 2000, msgHeader: "", msgText: "", quit: false, mdIcon: 'warning', mdIconColor: 'mdui-amber', fontColor: '', backgroundColor: 'mdui-amber-bg'},
+    WARN: {msgEvent: [''], logType: 'ALL',  severity: 'WARN',  priority: 2000, msgHeader: "", msgText: "", quit: false, mdIcon: 'warning', mdIconColor: 'mdui-amber', fontColor: '', backgroundColor: 'mdui-amber-bg'},
     ERROR: {msgEvent: ['TELEGRAM'], logType: 'ALL',  severity: 'ERROR', priority: 3000, msgHeader: "", msgText: "", quit: false, mdIcon: 'error', mdIconColor: 'mdui-orange', fontColor: '', backgroundColor: 'mdui-orange-bg'},
     ALARM: {msgEvent: ['TELEGRAM', 'EMAIL'], logType: 'ALL',  severity: 'ALARM', priority: 4000, msgHeader: "", msgText: "", quit: false, mdIcon: 'error', mdIconColor: 'mdui-red', fontColor: '', backgroundColor: 'mdui-red-bg'}
 };
@@ -419,7 +447,7 @@ class MessageHandler {
 
         this.MESSAGE_FIELDS_OUTPUT = [
             "msgID", "msgHeader", "msgText", "countEvents",  "firstDate", "lastDate",
-            "logType",  "severity", "priority", "quit", "msgEvent", "mdIcon", "mdIconColor", "fontColor", "backgroundColor"
+            "logType",  "severity", "priority", "quit", "visView", "msgEvent", "mdIcon", "mdIconColor", "fontColor", "backgroundColor"
         ];
 
         //-----------------------------------------------------------------------
@@ -751,8 +779,19 @@ class MessageHandler {
 
             jsonMsg.showCount = jsonMsg.countEvents > 0 ? "flex" : "none";
 
-            jsonMsg.showQuitable = jsonMsg.quit ? "flex" : "none";
-            
+            jsonMsg.showQuitable = jsonMsg.quit ? 
+			    `<div class="mdui-button-outlined mdui-center">
+					<button onclick="vis.setValue('`+this.STATE_PATH+`removeMsgID','` + jsonMsg.lastDate + `');"><i class="material-icons" style="font-size:0.9em">clear</i></button> 
+				</div>` : "";
+
+
+            jsonMsg.onClickChangeView =  "";
+            if(this.clearStr(jsonMsg.visView)) {
+                jsonMsg.onClickChangeView = 
+                 `<div class="mdui-button-outlined mdui-center">
+					<button onclick=\"vis.changeView('` + jsonMsg.visView + `');\"><i class="material-icons" style="font-size:0.9em">exit_to_app</i></button> 
+				  </div>`;
+            } 
 
             // Font color
             jsonMsg.fontColor = this.getFontColor( '#000000'); 
@@ -821,7 +860,7 @@ class MessageHandler {
 
 		const tmpList = {
 		row : 
-		`<div class="mdui-listitem mdui-center-v">
+		`<div class="mdui-listitem mdui-center-v" >
             <div class="material-icons {mdIconColor}" style="width:32px;">{mdIcon}&nbsp;</div>
             <div class="mdui-label" style="width:calc(100% - 100px);">{msgHeader} 
                 <div class="mdui-subtitle">{msgText}</div>    
@@ -836,11 +875,8 @@ class MessageHandler {
             </div>
 
             <div class="mdui-subtitle" style="width:20px;">
-			
-			    <div class="mdui-button-outlined mdui-center" style="display:{showQuitable};">
-					<button onclick="vis.setValue('`+this.STATE_PATH+`removeMsgID','{lastDate}');"><i class="material-icons" style="font-size:0.9em">clear</i></button> 
-				</div>
-
+                {onClickChangeView}
+                {showQuitable}
             </div>              
 		</div>`}
 
