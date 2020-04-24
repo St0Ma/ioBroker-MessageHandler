@@ -7,7 +7,7 @@ Die Idee ist es, alle relevanten Informationen auf "einen Blick" zu erkennen.
 Wichtige und kritische Ereignisse werden daher in der Liste zentral oben platziert. 
 Unwichtigere Informationen eher unten.
 
-![Material](https://github.com/St0Ma/ioBroker-MessageHandler/blob/master/vis/1586687354882-2020-04-12-12_27_30-vis.png)
+![Material](https://github.com/St0Ma/ioBroker-MessageHandler/blob/master/vis/demo_messagehandler.gif)
 
 
 Beispiele für Nachrichten:
