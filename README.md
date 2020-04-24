@@ -35,8 +35,12 @@ Beispiele für Nachrichten:
 
 - Ermöglicht es Nachrichten aus Skripten auszulösen und zu entfernen. Dies kann über zwei Wege erfolgen:
    - **Automatisches Erzeugen/Entfernen von Nachrichten** über das Javascript MessageStateCreator.
-  Es werden konfigurierte Datenpunkte überwacht und bei konfigurierten Bedingungen Nachrichten erzeugt oder auch entfernt. 
-  Die Textausgabe der Nachrichten kann auch konfiguriert werden und dynamisch erzeugt werden.
+  
+       - Es werden konfigurierte Datenpunkte überwacht und bei konfigurierten Bedingungen Nachrichten erzeugt oder auch entfernt. 
+       - Die Textausgabe der Nachrichten kann auch konfiguriert werden und dynamisch erzeugt werden.
+       - Nachrichten können erst nach einer Verzögerungszeit ausgelöst werden.
+       - Nachrichten können kontinuierlich nach einer Wiederholungszeit ausgelöst werden.
+    
    - **Javascript-Funktionen postMessage(..) oder removeMessage(..)** für den Einsatz in eigenen Skripten.
    
 - Es können entweder alle Nachrichten eines Nachrichtentyps protokolliert werden oder immer nur die letzte eingetretende Nachricht.
@@ -45,9 +49,9 @@ Beispiele für Nachrichten:
    - einfache HTML-Tabelle (ohne Schnickschnack)
    - Material Design CSS 2.0 Card (Voraussetzung ist die Installation des ["Material Design CSS 2.0"](https://github.com/Uhula/ioBroker-Material-Design-Style)
 
-- Nachrichten können (optional) in VIS global oder auch einzeln quittiert werden.
+- Nachrichten können (optional) in VIS global oder auch einzeln quittiert (gelöscht) werden.
 
-
+- Nachrichten können mit einem VIS-View verknüpft werden. Aus dem VIS Widget kann somit direkt in den View verzweigt werden.
 
 - Mit einer Nachricht können ein oder mehrere Ereignisse ausgelöst werden:
 
@@ -66,6 +70,8 @@ Beispiele für Nachrichten:
      - Kritikalität (Information, Warnung, Alarm etc.) / Priorität
      - Icon für die VIS Ausgabe
      - Farbe des Icons
+     - VIS-View
+     - Nachrichtenereignis (Senden eines Telegrams / Email)
         
 
 # Installation
@@ -100,7 +106,9 @@ Zur Konfiguration sind zwei Schritte erforderlich:
    Im Javascript selbst sind auch Beispiele enthalten, wie die Konfiguration durchgeführt wird.
 
 # Versionshistorie
-
+ * 0.5  - MessageHandler: Neues Attribut visView: VIS-Viewname auf dem über die Message verlinkt werden kann.
+        MessageStateCreator: - Erweiterung um Attribute Wartezeit delayTime und Wiederholungszeit repatTime
+        Möglichkeit der Zahlenformatierung über Attribute decimals und format
  * 0.4  - Ergänzung, um Nachrichtenereignissse (Telegram und Email)
         - Ergänzung, um Nachrichten in VIS zu quittieren.
  *  0.3  - Code Optimierung
