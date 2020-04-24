@@ -9,6 +9,8 @@
  * Support: https://forum.iobroker.net/topic/32207/script-messagehandler-nachrichten-protokollieren-vis
  * ----------------------------------------------------
  * Change Log:
+ *  0.5  - Erweiterung um Attribute Wartezeit delayTime und Wiederholungszeit repatTime
+ *         Möglichkeit der Zahlenformatierung
  *  0.4  - Subscriptions nur noch für jeden Datenpunkt einmal, Fehlerausgabe bei fehlerhaften Trigger-DP
  *  0.3  - few code improvements
  *  0.2  - Initial Release
@@ -51,6 +53,8 @@ Zur Konfiguration sind zwei Schritte erforderlich:
 
 /////////////////////
 // Hier die einzelnen Nachrichten anlegen und einstellen.
+// Die Konfiguration ist vor dem Skriptstart an die eigenenen Datenpunkte anzupassen!
+// nicht benötigte/vorhandene Konfigurationen sind auszukommentieren / zu löschen
 // Im ersten Beispiel ist alles im Detail beschrieben.
 /////////////////////
 
@@ -89,9 +93,26 @@ const MESSAGE_EVENTS = [
 		//             >  größer
 		//             <  kleiner
 		//       val: Wert
+		//       
 		//       Die Nachricht wird erzeugt, wenn die Bedingung "dp comp val" eintritt.
+		//
+		//       delayTime: Verzögerungszeit in Sekunden für die Auslösung der Nachricht. 
+		//                  In der Logik wird initial geprüft, ob die Bedingung gilt und erneut nach der Delay-Zeit.
+		//                  Erst wenn nach der Delay-Zeit auch die Bedingung der Nachricht gilt, wird die Nachricht erzeugt.
+		//
+		//                  Am Beispiel des Fenstersensors: die Nachricht soll erst ausgelöst werden, 
+		//                  wenn das Fenster länger als 60*20 Sekunden (d.h. 20 Minuten) offen ist. 
+		// 					In der Praxis macht das Setzen des Delays nur für einzelne Sensoren Sinn 
+		//                  (und keine States, die gemeinsame Zustände (z.B. Gruppen von Fenstern abbilden)!)
+		//
+		//       repeatTime: Wiederholungszeit in Sekunden. Prüft im Intervall in Sekunden, ob die Bedingung der Nachricht gilt.
+        //                   Die Nachricht wird frühestens nach der ersten konkreten Auslösung wiederholt.
+        //                   Wenn eine Delay-Zeit vorgegeben ist, beginnt die Wiederholungszeit nach der Delay-Zeit 
+        //                   (sofern die Bedingung der Nachricht weiterhin gilt).
+        //                   Sofern Zwischenzeitlich der Datenpunkt erneut getriggert wird, wird ein bereits ausgelöster Timer
+        //                   zur Wiederholung erneut gestartet.
 		
-        postMsgDP: {dp:'javascript.0.FensterUeberwachung.WindowsOpen', comp: '>', val:0}, 
+        postMsgDP: {dp:'javascript.0.FensterUeberwachung.WindowsOpen', comp: '>', val:0, delayTime:0, repeatTime:0}, 
 		
 		
 		// removeMsgDP: Nachricht entfernen, wenn ein vorgegebener Datenpunkt einer bestimmten Bedingung entspricht.
@@ -113,13 +134,22 @@ const MESSAGE_EVENTS = [
 		
 		// msgText_<Nr> : Diese Attribute bestimmen die Ausgabe des Nachrichtentextes.
 		// 
-		//                Es kann ein statischer Text ausgegeben werden durch das Attribut:
+		//                Es kann ein statischer Text ausgegeben werden durch das Attribut text:
 		//                Beispiel: 
 		//                msgText_1: {text: 'Fenster ist geöffnet'},
 		//        
 		//                Der Wert eines Datenpunkts kann in die Fehlernachricht mit ausgegeben werden.
-		//                Beispel: 
+		//                Beispiel: 
 		//                msgText_2: {dp: 'javascript.0.FensterUeberwachung.RoomsWithOpenWindows'},
+        //
+        //                In Datenpunkten mit Zahlen kann eine Aufbereitung der Zahl vorgenommen werden 
+        //                über die Attribute format und decimals:
+        //                Beispiel:
+        //                msgText_2: {dp: 'deconz.0.Sensors.18.temperature', format:'"##,#"', decimals:1},
+        //                
+        //                Die Attribute im einzelnen:
+        //                format: '#.###,##' // Ausgabe mit 1000er Trennzeichen Punkt und Komma
+        //                decimals: Ausabe mit vorgegebenen Nachkommastellen
 		// 
 		//                Es können beliebig viele msgText_ Attribute (mit fortlaufender Nummer) 
 		//                eingefügt werden (msgText_1, msgText_2, msgText_3, usw.).
@@ -138,7 +168,6 @@ const MESSAGE_EVENTS = [
         countEventsDP: 'javascript.0.FensterUeberwachung.WindowsOpen'
     },
     
-    
     // Eigene Nachricht, wenn alle Fenster geschlossen sind (Nur INFO)
     // Datenpunkte basieren auf Pitinis Fensterskript
     // GITHUB: https://github.com/Pittini/iobroker-Batterienauswertung
@@ -151,6 +180,26 @@ const MESSAGE_EVENTS = [
         msgText_1: {text: ''},
         msgText_2: {dp: 'javascript.0.FensterUeberwachung.RoomsWithOpenWindows'},
         countEventsDP: 'javascript.0.FensterUeberwachung.WindowsOpen'
+    },
+
+    // Nachrichten für länger geöffnete Fenster
+    {
+        msgID: 'WINDOW_ISLONGEROPEN_GARAGE', 
+        triggerDP: ['javascript.0.FensterUeberwachung.Garage.IsOpen'],
+        postMsgDP: {dp:'javascript.0.FensterUeberwachung.Garage.IsOpen', comp: '==', val: true, delayTime: 9000, repeatTime:0},  
+        removeMsgDP: {dp:'javascript.0.FensterUeberwachung.Garage.IsOpen', comp: '!=', val: true}, // Nachricht enfernen, wenn die Bedingung eintritt
+        msgText_1: {text: 'Fenster Garage länger als 15 Minuten geöffnet'},
+        countEventsDP: 'javascript.0.FensterUeberwachung.Garage.RoomOpenWindowCount'
+    },
+
+    // Nachrichten für länger geöffnete Fenster
+    {
+        msgID: 'WINDOW_ISLONGEROPEN_HAUS', 
+        triggerDP: ['javascript.0.FensterUeberwachung.Haus.IsOpen'],
+        postMsgDP: {dp:'javascript.0.FensterUeberwachung.Haus.IsOpen', comp: '==', val: true, delayTime: 900, repeatTime:0},  
+        removeMsgDP: {dp:'javascript.0.FensterUeberwachung.Haus.IsOpen', comp: '!=', val: true}, // Nachricht enfernen, wenn die Bedingung eintritt
+        msgText_1: {text: 'Fenster Haus länger als 15 Minuten geöffnet'},
+        countEventsDP: 'javascript.0.FensterUeberwachung.Haus.RoomOpenWindowCount'
     },
 
     // Letzter Briefkasteneinwurf
@@ -197,17 +246,32 @@ const MESSAGE_EVENTS = [
         msgText_4: {dp: 'tr-064.0.callmonitor.lastCall.calleeName'},
         countEventsDP: ''
     } ,
+    
+
+    // SONOS_INFO
+    // über SONOS-Adapter
+    {
+        msgID: 'SONOS_INFO', 
+        triggerDP: ['sonos.0.root.192_168_178_59.current_artist', 'sonos.0.root.192_168_178_59.state'],
+        msgText_1: {text: '<img src=\''},
+        msgText_2: {dp: 'sonos.0.root.192_168_178_59.current_cover'},
+        msgText_3: {text: '\' height=\'50%\' width=\'50%\'></img>'},
+        msgText_5: {text: '</br>Künstler: '},
+        msgText_6: {dp: 'sonos.0.root.192_168_178_59.current_artist'},
+        msgText_7: {text: '</br>Album: '},
+        msgText_8: {dp: 'sonos.0.root.192_168_178_59.current_album'}
+    },
 
     // Corona-Statistics
     // über Corona-Adapter
     {
         msgID: 'CORONA_STATS_CASES', 
         triggerDP: ['coronavirus-statistics.0.Germany.cases', 'coronavirus-statistics.0.Germany.deaths'],
-        postMsgDP: {dp:'coronavirus-statistics.0.Germany.cases'},
+        postMsgDP: {dp:'coronavirus-statistics.0.Germany.cases', format:'"#.###"', decimals:0},
         msgText_1: {text: '☣ Bestätigt: '},
-        msgText_2: {dp: 'coronavirus-statistics.0.Germany.cases'},
+        msgText_2: {dp: 'coronavirus-statistics.0.Germany.cases', format:'"#.###"', decimals:0},
         msgText_3: {text: '</br>♱ Tote: '},
-        msgText_4: {dp: 'coronavirus-statistics.0.Germany.deaths'},
+        msgText_4: {dp: 'coronavirus-statistics.0.Germany.deaths', format:'"#.###"', decimals:0},
         countEvents: 'coronavirus-statistics.0.Germany.deaths'
     },
 
@@ -218,10 +282,10 @@ const MESSAGE_EVENTS = [
         triggerDP: ['deconz.0.Sensors.18.temperature', 'deconz.0.Sensors.3.temperature'],
         postMsgDP: {dp:'deconz.0.Sensors.18.temperature'},
         msgText_1: {text: '🌐 '},
-        msgText_2: {dp: 'deconz.0.Sensors.18.temperature'},
+        msgText_2: {dp: 'deconz.0.Sensors.18.temperature', format:'"##,#"', decimals:1},
         msgText_3: {text: ' °C'},
         msgText_5: {text: ' 🏠 '},
-        msgText_6: {dp: 'deconz.0.Sensors.3.temperature'},
+        msgText_6: {dp: 'deconz.0.Sensors.3.temperature', format:'"##,#"', decimals:1},
         msgText_7: {text: ' °C'},
         countEvents: ''
     },
@@ -245,7 +309,7 @@ const MESSAGE_EVENTS = [
     {
         msgID: 'FREEZER_DOOR_ISOPEN_INFO', 
         triggerDP: 'deconz.0.Sensors.56.open',
-        postMsgDP: {dp:'deconz.0.Sensors.56.open', comp: '==', val:true},
+        postMsgDP: {dp:'deconz.0.Sensors.56.open', comp: '==', val:true, delayTime: 60, repeatTime: 30},
         removeMsgDP: {dp:'deconz.0.Sensors.56.open', comp: '==', val:false}, 
         msgText_1: {text: ''},
     },
@@ -255,7 +319,7 @@ const MESSAGE_EVENTS = [
     {
         msgID: 'FRIDGE_DOOR_ISOPEN_INFO', 
         triggerDP: 'deconz.0.Sensors.57.open',
-        postMsgDP: {dp:'deconz.0.Sensors.57.open', comp: '==', val:true},
+        postMsgDP: {dp:'deconz.0.Sensors.57.open', comp: '==', val:true, delayTime: 15, repeatTime: 10},
         removeMsgDP: {dp:'deconz.0.Sensors.57.open', comp: '==', val:false}, 
         msgText_1: {text: ''},
     },
@@ -322,13 +386,74 @@ const MESSAGE_EVENTS = [
         msgText_1: {text: 'Wasseralarm im großen Kellerraum!'},
         countEventsDP: ''
     },
+
+
+    // Logitech Harmony
+    // Über Harmony-Adapter
+    {
+        msgID: 'HARMONY_INFO', 
+        triggerDP: 'harmony.0.Harmonyhub.activities.currentActivity',
+        postMsgDP: {dp:'harmony.0.Harmonyhub.activities.currentActivity', comp: '!=', val:'PowerOff'},
+        removeMsgDP: {dp:'harmony.0.Harmonyhub.activities.currentActivity', comp: '==', val:'PowerOff'}, // Nachricht wird zur Sicherheit nicht entfernt, falls der Sensor toggelt!
+        msgText_1: {text: 'Aktivität: '},
+        msgText_2: {dp: 'harmony.0.Harmonyhub.activities.currentActivity'},
+        countEventsDP: ''
+    },
     
+
+    // Spritpreis-Info 
+    // über tankerkoenig-Adapter
+    {
+        msgID: 'TANK_INFO', 
+        triggerDP:  ['tankerkoenig.0.stations.cheapest.e5.feed','tankerkoenig.0.stations.cheapest.diesel.feed'],
+        postMsgDP: {dp:'tankerkoenig.0.stations.cheapest.e5.feed', comp: '>', val:0},
+        removeMsgDP: {dp:'tankerkoenig.0.stations.cheapest.e5.feed', comp: '==', val:0},
+        msgText_1: {text: 'DIESEL: '},
+        msgText_2: {dp: 'tankerkoenig.0.stations.cheapest.diesel.name'},
+        msgText_3: {text: ': '},
+        msgText_4: {dp: 'tankerkoenig.0.stations.cheapest.diesel.feed', format:'"#.##"', decimals:2},
+        msgText_5: {text: ' €'},
+        msgText_6: {text: '</br>SUPER:'},
+        msgText_7: {dp: 'tankerkoenig.0.stations.cheapest.e5.name'},
+        msgText_8: {text: ': '},
+        msgText_9: {dp: 'tankerkoenig.0.stations.cheapest.e5.feed', format:'"#.##"', decimals:2},
+        msgText_10: {text: ' €'},
+        countEventsDP: ''
+    },    
+
+
+    // Update ioBroker
+    // über Admin-Adapter
+    {
+
+        msgID: 'UPDATE_INFO', 
+        triggerDP: 'admin.0.info.updatesNumber',
+        postMsgDP: {dp:'admin.0.info.updatesNumber', comp: '>', val:0},
+        removeMsgDP: {dp:'admin.0.info.updatesNumber', comp: '==', val:0},
+        msgText_1: {text: 'Adapter: '},
+        msgText_2: {dp: 'admin.0.info.updatesList'},
+        msgText_3: {text: '. Bitte aktualisieren.'},
+        countEventsDP: 'admin.0.info.updatesNumber'
+    },
+
+    // Gäste WLAN
+    // über tr.064-Adapter
+    {
+        msgID: 'GUEST_WIFI', 
+        triggerDP: 'tr-064.0.states.wlanGuest',
+        postMsgDP: {dp:'tr-064.0.states.wlanGuest', comp: '==', val:true},
+        removeMsgDP: {dp:'tr-064.0.states.wlanGuest', comp: '==', val:false},
+        msgText_1: {text: 'Gäste WLAN eingeschalten'},
+        msgText_2: {dp: 'javascript.0.QR-Code.Gast'},
+        countEventsDP: ''
+    },
+
 
     // Internetverbindung Down Fritz!Box
     // Prüfung über UPNP-Adapter 
     // Github: https://github.com/Jey-Cee/ioBroker.upnp
     // ioBroker-Forum: https://forum.iobroker.net/topic/14802/tutorial-vis-fritzbox-status-up-downloadanzeige
-    /*
+
     {
        msgID: 'INTERNET_DOWN', 
        triggerDP: 'upnp.0.WANDevice_-_FRITZ!Box_6490_Cable_(kdg).WANDevice.WANCommonInterfaceConfig.GetCommonLinkProperties.NewPhysicalLinkStatus',
@@ -337,7 +462,6 @@ const MESSAGE_EVENTS = [
        msgText_1: {text: 'Keine Internetverbindung'},
        countEventsDP: ''
     },
-    */
 
  ];
 
@@ -350,6 +474,8 @@ const MESSAGE_EVENTS = [
 // ------------------------------------------------------------------------------------- 
 
 class MessageStateCreator {
+	
+
 
     constructor() {
       this.init();
@@ -361,6 +487,15 @@ class MessageStateCreator {
         this.DEBUG      = false;
         this.VERSION    = '0.2/2020-04-04';
         this.NAME       = 'MessageStateCreator';
+        this.so         = this;
+
+        /****************************************************************************
+         * Global variables and constants
+         ****************************************************************************/
+
+        this.G_DelayTimers = []; // Delay Timers
+        this.G_RepeatTimers = []; // Repeat Timers
+
 
         // var
         this.installed = false;
@@ -397,8 +532,21 @@ class MessageStateCreator {
  		
         let triggerDPArray = [];
         let createMsgDPArray = [];
-
+		
+		let id = 0;
+		
         for(const MsgConf of MESSAGE_EVENTS) {
+			
+			// Vergabe eindeutiger Id zur Laufzeit für Timer
+			// 
+			MsgConf.id = id++;
+			
+			// initialize Timer
+		
+			this.G_DelayTimers[MsgConf.id] = new myTimer();
+            this.G_RepeatTimers[MsgConf.id] = new myTimer();
+            
+			
             let first = true;
             // We are allowing multiple trigger for one msgID.
             // triggerDP: [{dp: 'javascript.0.FensterUeberwachung.RoomsWithOpenWindows'}, {dp:'javascript.0.FensterUeberwachung.WindowsOpen'}],
@@ -625,7 +773,7 @@ class MessageStateCreator {
 	}
 
     // createMessage
-    createMessage(objID) {
+    createMessage(objID, hasDelay=true) {
 
         for(const MsgConf of MESSAGE_EVENTS) {
                
@@ -645,9 +793,9 @@ class MessageStateCreator {
 
 					if(this.DEBUG) this.log("Trigger ausgelöst:" + triggerDP);               
 
-					let createMsg = this.checkCondition(MsgConf, 'postMsgDP');
+					let createMsg = this.checkCondition(objID, MsgConf, 'postMsgDP', hasDelay);
 					
-					let removeMsg = this.checkCondition(MsgConf, 'removeMsgDP');
+					let removeMsg = this.checkCondition(objID, MsgConf, 'removeMsgDP', hasDelay);
 
 					if(createMsg || removeMsg) {
 
@@ -661,17 +809,27 @@ class MessageStateCreator {
 						} else {
 							for (const MSGTEXT_KEY of MSGTEXT_KEYS) {
 								let dp = MsgConf[MSGTEXT_KEY].dp;                    
-								if( ! this.isLikeEmpty(dp)) { // FIXME Auf nicht existierenden DP prüfen!
+								if( ! this.isLikeEmpty(dp)) { 
 									if(this.existState(dp)) {
-										msgText += getState(dp).val;
-										
+										let val = getState(dp).val;
+
+                                        let decimals = MsgConf[MSGTEXT_KEY].decimals;                   
+                                        let format = MsgConf[MSGTEXT_KEY].format;  
+
+                                        if( ! this.isLikeEmpty(decimals) && !this.isLikeEmpty(format)) { 
+                                            val = formatValue(val, decimals, format);
+                                        } else if (!this.isLikeEmpty(format)) {
+                                            val = formatValue(val, 0, format);
+                                        }
+                                        msgText += val;
+                                        
 									} else {
-									this.log('Datenpunkt ' + dp + ' existiert nicht! [' + MsgConf.msgID + '].');
+									    this.log('Datenpunkt ' + dp + ' existiert nicht! [' + MsgConf.msgID + '].');
 									}
 								} 
 								
 								let text = MsgConf[MSGTEXT_KEY].text;                    
-								if( this.isLikeEmpty(text)  ) { // FIXME Auf nicht existierenden DP prüfen!
+								if( this.isLikeEmpty(text)  ) { 
 									//if (DEBUG) log('[DEBUG] VALIDIERUNG ' + LPCONF.name + ': In [' + LP_PERIOD_KEY + '] wurden keine Sekunden zum Ausschalten definiert oder auf 0 gesetzt, daher wird nicht automatisch abgeschaltet.');
 								} else {
 									msgText += text;
@@ -708,7 +866,7 @@ class MessageStateCreator {
         } // for
     } 
 	
-	checkCondition(MsgConf, field) {
+	checkCondition(objID, MsgConf, field, hasDelay) {
 
    		if (this.isLikeEmpty(MsgConf[field])) {
 			// if(this.DEBUG) this.logWarn(field + ' wurde nicht gesetzt in Script-Konfiguration.');
@@ -765,13 +923,81 @@ class MessageStateCreator {
 		}
 
         if(this.DEBUG) this.log('msgID: [' + MsgConf.msgID + '] Datenpunkt: [' + field + '] dp: [' + dp + '] State dp.val: [' + getState(dp).val + '] comp: [' + comp + '] val: [' + val + '] createMsg:' + createMsg);
+		
+        //-----------------------------------------------------------		
+        // Falls Delay-Zeit vorgegeben: Timer prüfen / setzen 
+        //-----------------------------------------------------------
+        		
+        let delayTime = MsgConf[field].delayTime;   
+
+        if( field == 'postMsgDP' && !this.isLikeEmpty(delayTime) && (delayTime > 0) ) {
+
+            if(hasDelay) {
+                if (this.G_DelayTimers[MsgConf.id].isRunning()) {
+
+                    if(createMsg == false) {
+                        // Der Trigger ist nicht mehr aktiv, aber der Timer läuft, also Stop den Timer
+                        this.G_DelayTimers[MsgConf.id].stop();
+                    } else {
+                        // Wenn innerhalb des Delays erneut getriggert wird verlängert sich nicht die Zeit!
+                        this.log('[DEBUG] ' + MsgConf.msgID + '(' + MsgConf.id + '): Check #1: Delay-Timer ist noch aktiv für ' + Math.round(this.G_DelayTimers[MsgConf.id].getTimeLeft()/1000) + ' Sekunden, also schalten wir nicht und brechen hier ab.');
+                    }
+                    
+                } else {
+                    // Timer wird nur bei positiver Auslösung gestartet
+                    if(createMsg == true) {
+                        log('[DEBUG] ' + MsgConf.msgID + '(' + MsgConf.id + '): Start "Delay"-Timer. Die Nachricht wird nach ' + delayTime + ' Sekunden geprüft und eventuell ausgelöst. ');
+                        // Timer-Start
+                        this.G_DelayTimers[MsgConf.id].start(function() {
+
+                            log('[DEBUG] ' + MsgConf.msgID + '(' + MsgConf.id + ') "Delay"-Timer ist nach ' + delayTime + ' Sekunden abgelaufen. Die Nachricht ' + objID + ' ausgelöst.');
+                            this.G_DelayTimers[MsgConf.id].stop(); // just in case
+                            this.createMessage(objID, false); // erzeugen Aktion neue Nachricht ohne Delay
+                            
+
+                        }.bind(this), delayTime * 1000);
+                    }
+                }
+                createMsg=false;
+            } else {
+                this.log('[DEBUG] ' + MsgConf.msgID + '(' + MsgConf.id + '): Nachricht hat kein Delay mehr! ');
+
+            }
+        }
+
 	
+		//-----------------------------------------------------------		
+		// Falls Repeat-Zeit vorgegeben: Timer prüfen / setzen 
+		// Wenn innerhalb des laufenden Timers eine neue Nachricht ausgelöst wird,
+		// wird der Timer zurückgesetzt.
+		//-----------------------------------------------------------
+		 
+		let repeatTime = MsgConf[field].repeatTime;   
+
+		if( field == 'postMsgDP' && !this.isLikeEmpty(repeatTime) && (repeatTime > 0) ) {
+
+			if (this.G_RepeatTimers[MsgConf.id].isRunning()) {
+				// Der Timer ist noch aktiv und wird gestoppt
+				this.G_RepeatTimers[MsgConf.id].stop();
+				log('[DEBUG] ' + MsgConf.msgID + '(' + MsgConf.id + '): Der "Repeat"-Timer wurde zurückgesetzt, weil die Nachricht zwischenzeitlich ausgelöst wurde. ');
+			}
+			
+			// Timer wird nur bei positiver Auslösung gestartet
+			if(createMsg == true) {
+				log('[DEBUG] ' + MsgConf.msgID + '(' + MsgConf.id + '): Start "Repeat"-Timer. Die Nachricht wird nach ' + delayTime + ' Sekunden erneut geprüft und eventuell ausgelöst. ');
+					// Timer-Start
+					this.G_RepeatTimers[MsgConf.id].start(function() {
+
+						log('[DEBUG] ' + MsgConf.msgID + '(' + MsgConf.id + ') "Repeat"-Timer ist nach ' + delayTime + ' Sekunden abgelaufen. Die Nachricht ' + objID + ' ausgelöst.');
+						this.G_RepeatTimers[MsgConf.id].stop(); // just in case
+						this.createMessage(objID, false); // erzeugen Aktion neue Nachricht ohne Delay
+
+					}.bind(this), delayTime * 1000);
+			}
+		}
+
 		return createMsg;
 	}
-
-
-
-
         
     //------------------------------------------------------------------------------
     // --------------------- helper functions 
@@ -816,6 +1042,69 @@ class MessageStateCreator {
     
 
 }   
+
+
+	/**
+	 * Better timer function
+	 * Features: Find out time remaining, stop timer easily, check status (running yes/no).
+	 * Autor:               Mic (ioBroker) | Mic-M (github)
+	 * Version:             0.1 (14 March 2020)
+	 * Source:              https://stackoverflow.com/questions/3144711/
+	 * -----------------------------------------------
+	 * Make a timer:
+		  let a = new myTimer();
+		  a.start(function() {
+		   // Do what ever
+		  }, 5000);
+	 * Time remaining:      a.getTimeLeft()
+	 * Stop (clear) timer:  a.stop()
+	 * Is timer running:    a.isRunning()
+	 * -----------------------------------------------
+	 */
+	function myTimer() {
+		let fcallback;
+		let id;
+		let started;
+		let remaining = 0;
+		let running = false;
+
+		this.start = function(callback, delay) {
+			fcallback = callback;
+			remaining = delay;
+			clearTimeout(id);
+			id = null;
+			running = true;
+			started = Date.now();
+			id = setTimeout(fcallback, remaining);
+		}
+
+		this.pause = function() {
+			running = false;
+			clearTimeout(id);
+			remaining -= Date.now() - started;
+		}
+
+		this.stop = function() {
+			running = false;
+			clearTimeout(id); id = null;
+			remaining = 0;
+		}
+
+		this.getTimeLeft = function() {
+			if (running) {
+				this.pause();
+				this.start(fcallback, remaining);
+				return remaining;
+			} else {
+				return 0;
+			}
+		}
+
+		this.isRunning = function() {
+			return running;
+		}
+
+	}
     
 // create instance and start
 var messageStateCreator = new MessageStateCreator();
