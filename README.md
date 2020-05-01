@@ -53,11 +53,13 @@ Beispiele für Nachrichten:
 
 - Nachrichten können mit einem VIS-View verknüpft werden. Aus dem VIS Widget kann somit direkt in den View verzweigt werden.
 
+- Swipe Gesten im VIS-Widget (nach rechts ziehen ist VIS-View wechseln, geht auch mit Click/Tap Aktion, nach links ziehen ist Nachricht löschen
+
 - Mit einer Nachricht können ein oder mehrere Ereignisse ausgelöst werden:
 
   - Senden einer Email
   - Senden einer Telegram-Pushnachricht
-
+  - Nachrichtenereignis LIGHT: Die Light-Severity (mit der höchsten Priorität) unter allen Nachrichten mit dem Nachrichtenereignis LIGHT wird in einen Datenpunkt 0_userdata.0.messageHandler.messages.lightSeverity fortgeschrieben.
 
 
 - Nachrichtendefinition: Nachrichten sind die Grundlage der Meldungen, die später aus Skripten ausgelöst werden.
