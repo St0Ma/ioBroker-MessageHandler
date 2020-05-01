@@ -9,8 +9,9 @@
  * Support: https://forum.iobroker.net/topic/32207/script-messagehandler-nachrichten-protokollieren-vis
  * ----------------------------------------------------
  * Change Log:
+ *  0.6  - Minor fix DWD
  *  0.5  - Erweiterung um Attribute Wartezeit delayTime und Wiederholungszeit repatTime
- *         Möglichkeit der Zahlenformatierung
+ *         Möglichkeit der Zahlenformatierung über Attribute decimals und format
  *  0.4  - Subscriptions nur noch für jeden Datenpunkt einmal, Fehlerausgabe bei fehlerhaften Trigger-DP
  *  0.3  - few code improvements
  *  0.2  - Initial Release
@@ -196,7 +197,7 @@ const MESSAGE_EVENTS = [
     {
         msgID: 'WINDOW_ISLONGEROPEN_HAUS', 
         triggerDP: ['javascript.0.FensterUeberwachung.Haus.IsOpen'],
-        postMsgDP: {dp:'javascript.0.FensterUeberwachung.Haus.IsOpen', comp: '==', val: true, delayTime: 900, repeatTime:0},  
+        postMsgDP: {dp:'javascript.0.FensterUeberwachung.Haus.IsOpen', comp: '==', val: true, delayTime: 9000, repeatTime:0},  
         removeMsgDP: {dp:'javascript.0.FensterUeberwachung.Haus.IsOpen', comp: '!=', val: true}, // Nachricht enfernen, wenn die Bedingung eintritt
         msgText_1: {text: 'Fenster Haus länger als 15 Minuten geöffnet'},
         countEventsDP: 'javascript.0.FensterUeberwachung.Haus.RoomOpenWindowCount'
@@ -309,7 +310,7 @@ const MESSAGE_EVENTS = [
     {
         msgID: 'FREEZER_DOOR_ISOPEN_INFO', 
         triggerDP: 'deconz.0.Sensors.56.open',
-        postMsgDP: {dp:'deconz.0.Sensors.56.open', comp: '==', val:true, delayTime: 60, repeatTime: 30},
+        postMsgDP: {dp:'deconz.0.Sensors.56.open', comp: '==', val:true, delayTime: 60, repeatTime: 180},
         removeMsgDP: {dp:'deconz.0.Sensors.56.open', comp: '==', val:false}, 
         msgText_1: {text: ''},
     },
@@ -319,7 +320,7 @@ const MESSAGE_EVENTS = [
     {
         msgID: 'FRIDGE_DOOR_ISOPEN_INFO', 
         triggerDP: 'deconz.0.Sensors.57.open',
-        postMsgDP: {dp:'deconz.0.Sensors.57.open', comp: '==', val:true, delayTime: 15, repeatTime: 10},
+        postMsgDP: {dp:'deconz.0.Sensors.57.open', comp: '==', val:true, delayTime: 30, repeatTime: 180},
         removeMsgDP: {dp:'deconz.0.Sensors.57.open', comp: '==', val:false}, 
         msgText_1: {text: ''},
     },
@@ -330,15 +331,15 @@ const MESSAGE_EVENTS = [
     {
         msgID: 'DWD_WARN', 
         triggerDP: 'dwd.0.warning.severity',
-        postMsgDP: {dp:'dwd.0.warning.severity', comp: '!=', val:'0'},
-        removeMsgDP: {dp:'dwd.0.warning.severity', comp: '==', val:'0'},
-        msgText_1: {dp: 'dwd.0.warning.headline'},
+        postMsgDP: {dp:'dwd.0.warning.severity', comp: '!=', val:0, delayTime: 10},
+        removeMsgDP: {dp:'dwd.0.warning.severity', comp: '==', val:0},
+        msgText_1: {dp: 'dwd.0.warning.text'},
         msgText_2: {text: ' <br> '},
         msgText_3: {dp: 'dwd.0.warning.description'},
         msgText_4: {text: ' <br> '},
-        msgText_5: {dp: 'dwd.0.warning2.headline'},
+        msgText_5: {dp: 'dwd.0.warning1.text'},
         msgText_6: {text: ' <br> '},
-        msgText_7: {dp: 'dwd.0.warning2.description'},
+        msgText_7: {dp: 'dwd.0.warning1.description'},
         countEventsDP: ''
     },
 
@@ -435,7 +436,7 @@ const MESSAGE_EVENTS = [
         msgText_3: {text: '. Bitte aktualisieren.'},
         countEventsDP: 'admin.0.info.updatesNumber'
     },
-
+    /*
     // Gäste WLAN
     // über tr.064-Adapter
     {
@@ -462,7 +463,7 @@ const MESSAGE_EVENTS = [
        msgText_1: {text: 'Keine Internetverbindung'},
        countEventsDP: ''
     },
-
+    */
  ];
 
 // ------------------------------------------------------------------------------------- 
