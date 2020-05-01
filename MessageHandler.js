@@ -9,6 +9,7 @@
  * Support: https://forum.iobroker.net/topic/32207/script-messagehandler-nachrichten-protokollieren-vis
  * ----------------------------------------------------
  * Change Log:
+ *  0.6  - MDCSS 2.5 Unterstützung für Swipe-Gesten, neues Nachrichtenereignis LIGHT
  *  0.5  - Neues Attribut visView: VIS-Viewname auf dem über die Message verlinkt werden kann.
  *  0.4  - Ergänzung, um Nachrichtenereignissse (Telegram und Email)
  *       - Ergänzung, um Nachrichten in VIS zu quittieren.
@@ -237,7 +238,7 @@ const MESSAGE_IDS = {
         //---------------------------------------------
 
         // Alarmanlage
-        HOUSE_ALARM: {msgEvent: [''], logType: 'LAST',  severity: 'ALARM',  msgHeader: "Alarm im Haus", msgText: "", quit: false, visView: 'pageSicherheit', mdIcon: 'notification_important', mdIconColor: '', fontColor: '', backgroundColor: ''},
+        HOUSE_ALARM: {msgEvent: [''], logType: 'LAST',  severity: 'ALARM',  msgHeader: "Alarm im Haus", msgText: "", quit: true, visView: 'pageSicherheit', mdIcon: 'notification_important', mdIconColor: '', fontColor: '', backgroundColor: ''},
 
         // Wasseralarm
         WATER_ALARM: {msgEvent: [''], logType: 'LAST',  severity: 'ALARM',  msgHeader: "Wasseralarm", msgText: "", quit: false, visView: 'pageSicherheit', mdIcon: 'waves', mdIconColor: '', fontColor: '', backgroundColor: ''},
@@ -292,7 +293,7 @@ const MESSAGE_IDS = {
         PLUGS_ON_INFO: {msgEvent: [''], logType: 'LAST',  severity: 'INFO',  msgHeader: "Steckdosen angeschaltet", msgText: "", quit: false, visView: '',mdIcon: '', mdIconColor: '', fontColor: '', backgroundColor: ''},
 
         // Post im Briefkasten
-        LAST_POSTENTRACE_INFO: {msgEvent: ['TELEGRAM'], logType: 'LAST',  severity: 'INFO',  msgHeader: "Briefkasten", msgText: "Neue Post im Briefkasten!", mdIcon: 'drafts', quit: true, mdIconColor: '', fontColor: '', backgroundColor: ''},
+        LAST_POSTENTRACE_INFO: {msgEvent: ['TELEGRAM', 'LIGHT'], logType: 'LAST',  severity: 'INFO',  msgHeader: "Briefkasten", msgText: "Neue Post im Briefkasten!", mdIcon: 'drafts', quit: true, mdIconColor: '', fontColor: '', backgroundColor: ''},
 
         // Müllabfuhr-Termine
         NEXT_GARBAGE_INFO: {msgEvent: [''], logType: 'LAST',  severity: 'INFO',  msgHeader: "Müll", msgText: "Tonne: &1, am &2 ", quit: true, visView: '', mdIcon: 'delete',  mdIconColor: '', fontColor: '', backgroundColor: ''},
@@ -342,22 +343,25 @@ const MESSAGE_IDS = {
 const MESSAGE_DEFAULTS_BY_SEVERITY = {
 
     INFO: {msgEvent: [], logType: 'ALL',  severity: 'INFO',  priority: 1000, msgHeader: "", msgText: "", quit: false, mdIcon: 'info', mdIconColor: 'mdui-blue', fontColor: '', backgroundColor: 'mdui-blue-bg'},
-    WARN: {msgEvent: [''], logType: 'ALL',  severity: 'WARN',  priority: 2000, msgHeader: "", msgText: "", quit: false, mdIcon: 'warning', mdIconColor: 'mdui-amber', fontColor: '', backgroundColor: 'mdui-amber-bg'},
-    ERROR: {msgEvent: ['TELEGRAM'], logType: 'ALL',  severity: 'ERROR', priority: 3000, msgHeader: "", msgText: "", quit: false, mdIcon: 'error', mdIconColor: 'mdui-orange', fontColor: '', backgroundColor: 'mdui-orange-bg'},
-    ALARM: {msgEvent: ['TELEGRAM', 'EMAIL'], logType: 'ALL',  severity: 'ALARM', priority: 4000, msgHeader: "", msgText: "", quit: false, mdIcon: 'error', mdIconColor: 'mdui-red', fontColor: '', backgroundColor: 'mdui-red-bg'}
+    WARN: {msgEvent: ['LIGHT'], logType: 'ALL',  severity: 'WARN',  priority: 2000, msgHeader: "", msgText: "", quit: false, mdIcon: 'warning', mdIconColor: 'mdui-amber', fontColor: '', backgroundColor: 'mdui-amber-bg'},
+    ERROR: {msgEvent: ['TELEGRAM','LIGHT'], logType: 'ALL',  severity: 'ERROR', priority: 3000, msgHeader: "", msgText: "", quit: false, mdIcon: 'error', mdIconColor: 'mdui-orange', fontColor: '', backgroundColor: 'mdui-orange-bg'},
+    ALARM: {msgEvent: ['TELEGRAM', 'EMAIL','LIGHT'], logType: 'ALL',  severity: 'ALARM', priority: 4000, msgHeader: "", msgText: "", quit: false, mdIcon: 'error', mdIconColor: 'mdui-red', fontColor: '', backgroundColor: 'mdui-red-bg'}
 };
 
 //-----------------------------------------------------------------------
 // Definition von Nachrichtenereignissen:
 // - Telegram (TELEGRAM-Adapter ist Voraussetzung)
 // - Email (Email-Adapter ist Voraussetzung)
-//
+// - LIGHT (Dieses Nachrichtenereignis ermöglicht eine Lichtsteuerung in Abhängigkeit 
+//          der SEVERITY (Info, Warning, Error, Alarm) aller Nachrichten denen das Nachrichtenereignis LIGHT zugeordnet ist.)
 // Nachrichtenereignissse werden mit einer Nachricht ausgelöst
 //-----------------------------------------------------------------------
 
 const MESSAGE_EVENTS = {
 	
+    //----------------------
 	// Telegram-Konfiguration
+    //----------------------
 	// - serviceName: 'TELEGRAM' (dieser Wert ist fix und steuert die Skriptlogik)
 	// - telegramInstanz: 'telegram.0'
 	// - telegramUser: optionale Vorgabe eines Benutzers. Sofern nicht vorgegeben, wird diese Einstellung vom Adapter übernommen.
@@ -367,14 +371,67 @@ const MESSAGE_EVENTS = {
 	TELEGRAM: {serviceName: 'TELEGRAM', telegramInstance: 'telegram.0', telegramUser: '', telegramChatId: '', maxChar: 4000},
 	
     
-	// Email-Konfiguration
+	//----------------------
+    // Email-Konfiguration
+    //----------------------
 	// - serviceName: 'EMAIL' (dieser Wert ist fix und steuert die Skriptlogik)
 	// - emailInstance: Vorgabe der Email-Instance (in der Regel ist dies 'email.0').
 	// - emailFrom: optionale Vorgabe einer abweichenden Absenderadresse. Sofern nicht vorgegeben, wird diese Einstellung vom Adapter übernommen.
 	// - emailTo: optionale Vorgabe von Zieladressen. Sofern nicht vorgegeben, wird diese Einstellung vom Adapter übernommen.
 	
     EMAIL: {serviceName: 'EMAIL', emailInstance: 'email.0', emailFrom: '', emailTo: [''] },
-    
+
+    //----------------------    
+    // Nachrichtenereignis LIGHT
+    // 
+    // Dieses Nachrichtenereignis ermöglicht eine Lichtsteuerung in Abhängigkeit der SEVERITY (Info, Warning, Error, Alarm).
+    // Beispielsweise können in einem weiteren Skript in Abhängigkeit der SEVERITY Lampen in verschiedenen Farben geschaltet werden:
+    // Severity INFO : Blaues Licht
+    // Severity Warning: Oranges Licht
+    // Severity ERROR: Pinkes Licht
+    // Severity ALARM: Rotes Licht
+    //
+    // Dieses Skript ermittelt aus allen erzeugten Nachrichten 
+    // bei denen das Nachrichtenereignis LIGHT definiert ist die maximale Severity.
+    // Die maximale Light-Severity wird in einen Datenpunkt 
+    // 0_userdata.0.messageHandler.messages.lightSeverity fortgeschrieben.
+    // 
+    //----------------------
+    // - serviceName: 'LIGHTSEVERITY' (dieser Wert ist fix und steuert die Skriptlogik)
+    //  
+
+    LIGHT: {serviceName: "LIGHTSEVERITY" },
+
+    //----------------------    
+    // Steuerung Datenpunkt (experimentell)
+    //----------------------
+    // - serviceName: 'ACTION' (dieser Wert ist fix und steuert die Skriptlogik)
+    // - setDP: Array von Datenpunkten, die mit der Aktion geschaltet werden sollen.
+    //          Im Array sind jeweils die Attribute
+    //          dp: Datenpunkt
+    //          val: zu setzender Wert im Datenpunkt
+    //          zu definieren.
+    //  
+    // Beispiel Licht Orange Schalten
+
+    LIGHTWARN: {serviceName: "ACTION", 
+                            setDP: [ {dp: 'deconz.0.Lights.3.xy', val: [0.6115, 0.3684]},
+                                        {dp: 'deconz.0.Lights.3.level', val: 100},
+                                        {dp: 'deconz.0.Lights.3.transitiontime', val: 5000},
+                                        {dp: 'deconz.0.Lights.3.on', val: true}, 
+                                      ]
+                },
+
+
+    // Beispiel Licht Rot Schalten
+    LIGHTALARM: {serviceName: "ACTION", 
+                            setDP: [ {dp: 'deconz.0.Lights.3.xy', val: [0.7285,0.2707]},
+                                        {dp: 'deconz.0.Lights.3.level', val: 100},
+                                        {dp: 'deconz.0.Lights.3.transitiontime', val: 5000},
+                                        {dp: 'deconz.0.Lights.3.on', val: true}, 
+                                      ]
+               },
+
 
 };
 
@@ -400,7 +457,7 @@ class MessageHandler {
     init() {
         // const
         this.DEBUG      = false;
-        this.VERSION    = '0.4/2020-04-16';
+        this.VERSION    = '0.6/2020-04-25';
         this.NAME       = 'MessageHandler';
 
 		// -----------------------  
@@ -426,6 +483,7 @@ class MessageHandler {
         this.subscribers = [];
         this.schedulers = [];
 		this.messageList = []; // JSON MessageList in Memory
+        this.lightSeverity = undefined;
        
         // init der states
         this.states.push( { id:'version',     common:{name:'installed script-version', write:false, type: 'string', def:this.VERSION} } );
@@ -440,6 +498,7 @@ class MessageHandler {
         this.states.push( { id:'messages.lastClear',  common:{name:'messages last clear', write:false, type: 'number', def:0  }} );
         this.states.push( { id:'messages.clearPressed',common:{name:'messages clear table/list', write:true, type:'boolean', def:false, role:'button' }} );
 		this.states.push( { id:'removeMsgID', common:{name:'Entfernen einer Nachricht über msgID', write:true, type:'string', def:'' }} );
+        this.states.push( { id:'messages.lightSeverity',     common:{name:'maximal light Severity', write:true, type: 'string', def:''}} );
         //-----------------------------------------------------------------------
         // Definition der Feldattribute, die aus der Nachrichtendefinition vererbt werden für die Ausgabe in VIS/HTML
         // Im Regelfall ist an dieser Systemeinstellung nichts zu ändern.
@@ -754,6 +813,8 @@ class MessageHandler {
 
         let curDateTime = new Date();
 
+        this.lightSeverity = undefined;
+
 		for (var i = 0; i < this.messageList.length ; i++) {
 
             //---------------------------------------------------------
@@ -779,18 +840,46 @@ class MessageHandler {
 
             jsonMsg.showCount = jsonMsg.countEvents > 0 ? "flex" : "none";
 
-            jsonMsg.showQuitable = jsonMsg.quit ? 
-			    `<div class="mdui-button-outlined mdui-center">
-					<button onclick="vis.setValue('`+this.STATE_PATH+`removeMsgID','` + jsonMsg.lastDate + `');"><i class="material-icons" style="font-size:0.9em">clear</i></button> 
+
+            // Swipe Delete
+            jsonMsg.mduiSwipeDelete = jsonMsg.quit ? 
+			    `mdui-swipe-left?dist:64;background:red;icon:delete;text:Löschen;action:setValue(`+this.STATE_PATH+`removeMsgID,` + jsonMsg.lastDate + `)` : "";
+
+            // Delete Button (Nur für "No Swipe"-Geräte)
+            jsonMsg.mduiNoSwipeDelete = jsonMsg.quit ? 
+			    `<div class='mdui-navitem mdui-show-notouch mdui-center
+                           mdui-tooltip?text:Löschen+des+Eintrags 
+                           mdui-click?action:setValue(` + this.STATE_PATH+`removeMsgID,`  + jsonMsg.lastDate + `)' style='flex:0 0.9em;' >
+					  <i class='mdui-icon'>clear</i>
 				</div>` : "";
 
 
-            jsonMsg.onClickChangeView =  "";
+            // Swipe Change View
+            jsonMsg.mduiSwipeChangeView = "";
             if(this.clearStr(jsonMsg.visView)) {
-                jsonMsg.onClickChangeView = 
-                 `<div class="mdui-button-outlined mdui-center">
-					<button onclick=\"vis.changeView('` + jsonMsg.visView + `');\"><i class="material-icons" style="font-size:0.9em">exit_to_app</i></button> 
-				  </div>`;
+                jsonMsg.mduiSwipeChangeView = 
+                    `mdui-swipe-right?dist:64;background:blue;icon:exit_to_app;action:changeView(` + jsonMsg.visView +`)`; 
+            } 
+            
+
+            // Touch/Click Change View
+            jsonMsg.mduiClickChangeView=  "";
+            if(this.clearStr(jsonMsg.visView)) {
+                jsonMsg.mduiClickChangeView = 
+                    `mdui-tooltip?text:View+aufrufen mdui-click?action:changeView(` + jsonMsg.visView +`)`; 
+
+            } 
+
+
+            // No Swipe Change View Button
+            jsonMsg.mduiNoSwipeChangeView =  "";
+            if(this.clearStr(jsonMsg.visView)) {
+                jsonMsg.mduiNoSwipeChangeView = 
+                    `<div class='mdui-navitem mdui-show-notouch mdui-center
+                            mdui-tooltip?text:View+aufrufen 
+                            mdui-click?action:changeView(` + jsonMsg.visView + `)' style='flex:0 0.9em;' >
+                        <i class='mdui-icon'>exit_to_app</i>
+                    </div>`;
             } 
 
             // Font color
@@ -800,12 +889,15 @@ class MessageHandler {
                 log("onBuildHTML(jsonMsg) Message Values: " + JSON.stringify(jsonMsg));
             } 
             
-            // Auslösen Nachrichtenereignis (sofern definiert)
-			//FIXME this.msgEvent(jsonMsg);
+            // Auslösen Nachrichtenereignis LIGHTSEVERITY 
+            // führt zur Neubestimmung in jedem HTML Aufbau (d.h. bei Skriptstart / Entfernen und einfügen von nachrichten)
+        	this.msgEvent(jsonMsg, 'LIGHTSEVERITY');
 
             json.push( jsonMsg );
-        }    
+        }   
 
+
+        this.setState('messages.lightSeverity', this.clearStr(this.lightSeverity));  
 
         //-----------------------------------------------
         // Sort Messages
@@ -860,24 +952,25 @@ class MessageHandler {
 
 		const tmpList = {
 		row : 
-		`<div class="mdui-listitem mdui-center-v" >
-            <div class="material-icons {mdIconColor}" style="width:32px;">{mdIcon}&nbsp;</div>
-            <div class="mdui-label" style="width:calc(100% - 100px);">{msgHeader} 
-                <div class="mdui-subtitle">{msgText}</div>    
-            </div>       
-            <div class="mdui-subtitle" style="width:20px;">
+		`<div class="mdui-listitem {mduiClickChangeView} {mduiSwipeDelete} {mduiSwipeChangeView}" style="display:flex;" >
+            <div class="mdui-icon {mdIconColor}" style='flex:0 0 1.5em;'>{mdIcon}&nbsp;</div>
+            <div style='flex:1 1 auto; display:flex; flex-wrap:wrap;'>
+                <div class='mdui-label' style='flex:1 0 100%;'>{msgHeader} </div> 
+                <div class='mdui-subtitle' style='padding-right:0.5em;'>{msgText}</div>
+            </div>           
+            <div class="mdui-subtitle mdui-center" style="width:20px;">
                 <div class="{backgroundColor}" style="display:{showCount}; align-items: center;justify-content: center;width:20px;border-radius:1em;">{countEvents}</div>
-            </div>            
-            <div class="mdui-subtitle" tyle="width:40px;">            
+            </div>     
+
+            <div class="mdui-subtitle" style="width:40px;">            
                 <span style="font-size:0.9em; margin:4px; opacity:.8; text-align:middle;">{lastDateDay}</span>
                 <br/>
                 <span style="font-size:0.9em; margin:4px; opacity:.8; text-align:middle;">{lastDateTime}</span>
             </div>
-
-            <div class="mdui-subtitle" style="width:20px;">
-                {onClickChangeView}
-                {showQuitable}
-            </div>              
+            <div class="mdui-subtitle mdui-show-notouch" style="width:20px;">
+                {mduiNoSwipeChangeView}
+                {mduiNoSwipeDelete}
+            </div>  
 		</div>`}
 
 		// build htmlTable and htmlList
@@ -965,6 +1058,12 @@ class MessageHandler {
     // getState().notExists geht auch, erzeugt aber Warnmeldungen!
     existState(id) {
         return ( $(this.STATE_PATH+id).length==0?false:true);
+    }
+
+    // über den $-Operator nachsehen, ob der state bereits vorhanden ist
+    // getState().notExists geht auch, erzeugt aber Warnmeldungen!
+    existGlobalState(id) {
+        return ( $(id).length==0?false:true);
     }
     
     // wrapper, adds statepath to state-ID
@@ -1109,8 +1208,8 @@ class MessageHandler {
 	/**************************************************************************
 	* Senden der Nachricht über die verschiedenen Pushdienste
 	/* ************************************************************************* */
-	
-	msgEvent(jsonMsg) {
+
+	msgEvent(jsonMsg, service=undefined) {
         
         if(this.isLikeEmpty(jsonMsg.msgEvent)) {
             return;
@@ -1127,12 +1226,12 @@ class MessageHandler {
         }
 
         for (const msgEvent of msgEventArray) {
-            this.sendMessage(msgEvent, jsonMsg);
+            this.sendMessage(msgEvent, jsonMsg, service);
         }
 	}
 	
     // Senden eines Nachrichtenereignisses
-	sendMessage(msgEvent, jsonMsg) {
+	sendMessage(msgEvent, jsonMsg, service) {
 
         // Getting msgEvents Service Data
 
@@ -1146,7 +1245,7 @@ class MessageHandler {
                 // {serviceName: 'TELEGRAM', telegramInstance: 'telegram.0', telegramUser: '', telegramChatId: '',count:0, delay:200, maxChar: 4000},
                 //----------------------------------------------------------
 
-                if(serviceName == 'TELEGRAM') {
+                if(serviceName == 'TELEGRAM' && service == undefined) {
 
                     // Format TELEGRAM Message                    
                     // Sending simple Markdown, because Markdown V2 does not support Unicode Characters?
@@ -1181,7 +1280,7 @@ class MessageHandler {
                 // EMAIL: {serviceName: 'EMAIL', emailInstance: 'email.0', emailFrom: '', emailTo: [''] },
                 //----------------------------------------------------------
 
-                } else if(serviceName == 'EMAIL')  {
+                } else if(serviceName == 'EMAIL' && service == undefined)  {
 
                     let emailSubject = this.htmlToText(this.clearStr(jsonMsg.severity) + ": " + this.clearStr(jsonMsg.msgHeader));
                     let emailText = this.htmlToText(this.clearStr(jsonMsg.severity) + ": " + this.clearStr(jsonMsg.msgHeader) + "<br><br>" + this.clearStr(jsonMsg.msgText));
@@ -1216,9 +1315,53 @@ class MessageHandler {
                         this.log("sendTo(email, send, " + JSON.stringify(context) + ');');
                     }
                 
+                } else if(serviceName == 'ACTION' && service == undefined)  {
+
+                    /*
+                    serviceName: "ACTION", 
+                            action: [ {dp: 'deconz.0.Lights.3.xy', val: '0.6115,0.3684'},
+                                        {dp: 'deconz.0.Lights.3.level', val: 100},
+                                        {dp: 'deconz.0.Lights.3.transitiontime', val: 5000},
+                                        {dp: 'deconz.0.Lights.3.on', val: true}, 
+                                      ]
+                    },
+                    */
+                    let setDP = MESSAGE_EVENTS[defMsgEvent]['setDP'];
+ 
+
+                    for (const MSGTEXT_KEY of setDP) {
+                        let dp = this.clearStr(MSGTEXT_KEY.dp);                    
+                        let val = MSGTEXT_KEY.val;                                            
+                        
+                        if( ! this.isLikeEmpty(dp) && ! this.isLikeEmpty(val)) { 
+                            if(! this.existGlobalState(dp)) {
+                                this.logError('msgID: [' + jsonMsg.msgID + '] Attribut: [action: dp] Datenpunkt: [' + dp + '] existiert nicht! Bitte Script-Konfiguration überprüfen.');
+                            } else {
+                                this.log('msgID: [' + jsonMsg.msgID + '] setState("' + dp + '", "' +  val + '");');
+                                setState(dp, val);
+                            }
+                        } 
+                                
+                    }
+                    
+                } else if(serviceName == 'LIGHTSEVERITY' && (service == undefined || service == 'LIGHTSEVERITY'))  {
+                    
+                    if(this.lightSeverity == undefined) {
+                        this.lightSeverity = jsonMsg.severity;
+                         this.log("Setze Light Severity auf: " + this.lightSeverity);
+                    } else {
+                        let msgPriority = MESSAGE_DEFAULTS_BY_SEVERITY[jsonMsg.severity].priority;
+                        let curLightPriority = MESSAGE_DEFAULTS_BY_SEVERITY[this.lightSeverity].priority;
+                        
+                        if(msgPriority >= curLightPriority) {
+                            this.lightSeverity = jsonMsg.severity;
+                            this.log("Setze Light Severity auf: " + this.lightSeverity);
+                        }
+                    }       
 
                 } else {
-                    this.logError("Nachrichtenereignis: [" + msgEvent + "] - Der Servicename [" + serviceName + "] ist nicht implementiert." );
+                    if(service == undefined)
+                        this.logError("Nachrichtenereignis: [" + msgEvent + "] - Der Servicename [" + serviceName + "] ist nicht implementiert." );
                 }
 
             }
@@ -1242,11 +1385,12 @@ class MessageHandler {
         // postMessage(msgID,  msgText='', countEvents=0, msgHeader='')
         // ------------------------------------------------------------------
 
-        postMessage("HOUSE_ALARM", "Bewegung im Haus"); // Alarm: Bewegung im Haus
-        postMessage("OPEN_WINDOW_INFO", "Badezimmer");  // Fenster geöffnet im Badezimmer
-        postMessage("WATER_ALARM", "Wasser im Kellerraum."); // Wasseralarm im Kellerraum
+        //postMessage("HOUSE_ALARM", "Bewegung im Haus"); // Alarm: Bewegung im Haus
+        //postMessage("OPEN_WINDOW_INFO", "Badezimmer");  // Fenster geöffnet im Badezimmer
+        //postMessage("WATER_ALARM", "Wasser im Kellerraum."); // Wasseralarm im Kellerraum
         
-        postMessage("WATER_ALARM", "Wasser im Kellerraum."); // Wasseralarm im Kellerraum
+        //postMessage("WATER_ALARM", "Wasser im Kellerraum."); // Wasseralarm im Kellerraum
+       /*
         postMessage("LIGHTS_ON_INFO", "Wohnzimmer, Flur, Küche", 5); // 5 Lichter im Flur, Wohnzimmer und Küche sind angeschaltet
         postMessage("DOOR_ISOPEN_INFO", "Haustür", 1); // Haustür ist geöffnet.
         postMessage("WINDOW_ISOPEN_INFO", "Küche", 2); // 1 Fenster geöffnet
@@ -1254,19 +1398,21 @@ class MessageHandler {
         postMessage("NEXT_GARBAGE_INFO", "Morgen Gelbe Tonne", 1); // Nächste Müllabholung
         postMessage("LAST_POSTENTRACE_INFO"); // Neuer Posteinwurf Briefkasten
         postMessage("CALENDAR_EVENTS_TODAY", "13:30 Ingo Bingo"); // Heutige Termine
-    
+    */
 
         // ------------------------------------------------------------------
         // Entfernen von Nachrichten
         // ------------------------------------------------------------------
 
-        removeMessage("HOUSE_ALARM");  // Alarm im Haus
-        removeMessage("WATER_ALARM");    // Wasseralarm
-        removeMessage("OPEN_WINDOW_INFO");  // Fenster ist offen
+       // removeMessage("HOUSE_ALARM");  // Alarm im Haus
+       // removeMessage("WATER_ALARM");    // Wasseralarm
+      //  removeMessage("OPEN_WINDOW_INFO");  // Fenster ist offen
         
-        postMessage("HOUSE_ALARM", "Bewegung im Haus"); // Alarm: Bewegung im Haus
+        //postMessage("HOUSE_ALARM", "Bewegung im Haus"); // Alarm: Bewegung im Haus
+        /*
         postMessage("OPEN_WINDOW_INFO", "Badezimmer");  // Fenster geöffnet im Badezimmer
         postMessage("WATER_ALARM", "Wasser im Kellerraum."); // Wasseralarm im Kellerraum
+        */
 
     }   
 }   
@@ -1278,7 +1424,7 @@ messageHandler.start();
 if(messageHandler.installed) {
     // Testfunktion zum Auslösen / Entfernen von Nachrichten
     // im Normalbetrieb ist die folgende Zeile auszukommentieren!
-    //messageHandler.test();
+   // messageHandler.test();
 }
 
 //--------------------------------------------------------
