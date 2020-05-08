@@ -59,6 +59,7 @@ Beispiele für Nachrichten:
 
   - Senden einer Email
   - Senden einer Telegram-Pushnachricht
+  - Senden einer Pushover-Nachricht
   - Nachrichtenereignis LIGHT: Die Light-Severity (mit der höchsten Priorität) unter allen Nachrichten mit dem Nachrichtenereignis LIGHT wird in einen Datenpunkt 0_userdata.0.messageHandler.messages.lightSeverity fortgeschrieben.
 
 
@@ -108,6 +109,7 @@ Zur Konfiguration sind zwei Schritte erforderlich:
    Im Javascript selbst sind auch Beispiele enthalten, wie die Konfiguration durchgeführt wird.
 
 # Versionshistorie
+ * 0.7  - Integration neues Nachrichtenereignis PUSHOVER, Fix Spaltenbreite in VIS
  * 0.6  - Upgrade auf MDCSS 2.5, Unterstützung Swipe-Gesten, Nachrichtenereignis LIGHT
  * 0.5  - MessageHandler: Neues Attribut visView: VIS-Viewname auf dem über die Message verlinkt werden kann.
         MessageStateCreator: - Erweiterung um Attribute Wartezeit delayTime und Wiederholungszeit repatTime
