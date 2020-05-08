@@ -9,6 +9,7 @@
  * Support: https://forum.iobroker.net/topic/32207/script-messagehandler-nachrichten-protokollieren-vis
  * ----------------------------------------------------
  * Change Log:
+ *  0.7  - Neues Nachrichtenereignis für Pushover, Fix MDCSS Ausgabe (Spaltenbreite)
  *  0.6  - MDCSS 2.5 Unterstützung für Swipe-Gesten, neues Nachrichtenereignis LIGHT
  *  0.5  - Neues Attribut visView: VIS-Viewname auf dem über die Message verlinkt werden kann.
  *  0.4  - Ergänzung, um Nachrichtenereignissse (Telegram und Email)
@@ -120,8 +121,9 @@
              Es sind folgende Ereignisse konfigurierbar: 
              - Telegram (TELEGRAM-Adapter ist Voraussetzung)
              - Email (Email-Adapter ist Voraussetzung)
+             - Pushover (Pushover-Adapter ist Voraussetzung)
+             - LIGHT (für eine Lichtsteuerung)
              Die Konfiguration der Nachrichtenereignisse erfolgt unten im Skript in der Konstante MESSAGE_EVENTS.
-
 
  - msgHeader: Kopftext der Nachricht. Hier kann ein Standardtext definiert werden.
 
@@ -275,10 +277,19 @@ const MESSAGE_IDS = {
         // Deutscher Wetter Dienst Warnung
         DWD_WARN: {msgEvent: [''], logType: 'LAST',  severity: 'WARN',  msgHeader: "Wetterwarnung", msgText: "", quit: true, visView: 'pageKlima', mdIcon: 'track_changes', mdIconColor: '', fontColor: '', backgroundColor: ''},
 
+        // Batterie Warnung
+        BATTERIE_Warning: {msgEvent: ['Telegram'], logType: 'LAST',  severity: 'WARN',  msgHeader: "Batterie", msgText: "Bitte Batterie wechseln", quit: false, mdIcon: 'battery_unknown', mdIconColor: '', fontColor: '', backgroundColor: ''},
+
+        // Zigbee Warnung
+        DECONZ_Warning: {msgEvent: ['Telegram'], logType: 'LAST',  severity: 'WARN',  msgHeader: "Zigbee", msgText: "Bitte Batterie wechseln", quit: false, mdIcon: 'wifi', mdIconColor: '', fontColor: '', backgroundColor: ''},
+
 
         //---------------------------------------------
         // INFO-Meldungen
         //---------------------------------------------
+
+        // Status Alarmanlage
+        ALARMANLAGE_STATUS: {msgEvent: [''], logType: 'LAST',  severity: 'INFO',  msgHeader: "Alarmanlage", msgText: "", quit: false, visView: 'pageSicherheit', mdIcon: 'security', mdIconColor: '', fontColor: '', backgroundColor: ''},
 
         // Offene Fenster
         WINDOW_ISCLOSED_INFO: {msgEvent: [''], logType: 'LAST',  severity: 'INFO',  msgHeader: "Fenster sind zu", msgText: "", quit: false, mdIcon: 'tab', mdIconColor: '', fontColor: '', backgroundColor: ''},
@@ -331,6 +342,9 @@ const MESSAGE_IDS = {
         // Gäste WLAN
         GUEST_WIFI: {msgEvent: [''], logType: 'LAST',  severity: 'INFO',  msgHeader: "WLAN", msgText: "", quit: false, mdIcon: 'wifi', mdIconColor: '', fontColor: '', backgroundColor: ''},
 
+        // Batterieüberwachung
+        BATTERIE_INFO: {msgEvent: [''], logType: 'LAST',  severity: 'INFO',  msgHeader: "Batterie", msgText: "", quit: true, mdIcon: 'battery_alert', mdIconColor: '', fontColor: '', backgroundColor: ''},
+
 };
 
 //-----------------------------------------------------------------------
@@ -341,11 +355,10 @@ const MESSAGE_IDS = {
 //-----------------------------------------------------------------------
 
 const MESSAGE_DEFAULTS_BY_SEVERITY = {
-
-    INFO: {msgEvent: [], logType: 'ALL',  severity: 'INFO',  priority: 1000, msgHeader: "", msgText: "", quit: false, mdIcon: 'info', mdIconColor: 'mdui-blue', fontColor: '', backgroundColor: 'mdui-blue-bg'},
-    WARN: {msgEvent: ['LIGHT'], logType: 'ALL',  severity: 'WARN',  priority: 2000, msgHeader: "", msgText: "", quit: false, mdIcon: 'warning', mdIconColor: 'mdui-amber', fontColor: '', backgroundColor: 'mdui-amber-bg'},
-    ERROR: {msgEvent: ['TELEGRAM','LIGHT'], logType: 'ALL',  severity: 'ERROR', priority: 3000, msgHeader: "", msgText: "", quit: false, mdIcon: 'error', mdIconColor: 'mdui-orange', fontColor: '', backgroundColor: 'mdui-orange-bg'},
-    ALARM: {msgEvent: ['TELEGRAM', 'EMAIL','LIGHT'], logType: 'ALL',  severity: 'ALARM', priority: 4000, msgHeader: "", msgText: "", quit: false, mdIcon: 'error', mdIconColor: 'mdui-red', fontColor: '', backgroundColor: 'mdui-red-bg'}
+    INFO: {msgEvent: ['PUSHOVER_NORMAL'], logType: 'ALL',  severity: 'INFO',  priority: 1000, msgHeader: "", msgText: "", quit: false, mdIcon: 'info', mdIconColor: 'mdui-blue', fontColor: '', backgroundColor: 'mdui-blue-bg'},
+    WARN: {msgEvent: ['LIGHT','PUSHOVER_NORMAL'], logType: 'ALL',  severity: 'WARN',  priority: 2000, msgHeader: "", msgText: "", quit: false, mdIcon: 'warning', mdIconColor: 'mdui-amber', fontColor: '', backgroundColor: 'mdui-amber-bg'},
+    ERROR: {msgEvent: ['TELEGRAM','LIGHT', 'PUSHOVER_NORMAL'], logType: 'ALL',  severity: 'ERROR', priority: 3000, msgHeader: "", msgText: "", quit: false, mdIcon: 'error', mdIconColor: 'mdui-orange', fontColor: '', backgroundColor: 'mdui-orange-bg'},
+    ALARM: {msgEvent: ['TELEGRAM', 'EMAIL','LIGHT', 'PUSHOVER_EMERGENCY'], logType: 'ALL',  severity: 'ALARM', priority: 4000, msgHeader: "", msgText: "", quit: false, mdIcon: 'error', mdIconColor: 'mdui-red', fontColor: '', backgroundColor: 'mdui-red-bg'}
 };
 
 //-----------------------------------------------------------------------
@@ -370,7 +383,30 @@ const MESSAGE_EVENTS = {
     
 	TELEGRAM: {serviceName: 'TELEGRAM', telegramInstance: 'telegram.0', telegramUser: '', telegramChatId: '', maxChar: 4000},
 	
+
+    //----------------------
+	// Pushover-Konfiguration
+    //----------------------
+	// - serviceName: 'PUSHOVER' (dieser Wert ist fix und steuert die Skriptlogik)
+	// - pushoverInstanz: 'pushover.0'
+	// - pushoverDevice: optionale Vorgabe eines bestimmten Geräts
+    // - pushoverSound: optionale Vorgabe eines Sounds siehe: https://pushover.net/api#sounds
+    //                  Sofern nicht definiert, wird kein Sound ausgegeben ("none")
+	// - pushoverPriority: Priorität der Nachricht (siehe: https://pushover.net/api#priority
+    //                     Lowest Priority (-2)
+    //                     Low Priority (-1)
+    //                     Normal Priority (0)
+    //                     High Priority (1)
+    //                     Emergency Priority (2) - Parameter retry und expire sind vorzugeben!
+    // - pushoverRetry: The retry parameter specifies how often (in seconds) the Pushover servers will send the same notification to the user.
+    //                  Bitte die Hinweise unter https://pushover.net/api#priority beachten!
+    // - pushoverExpire: The expire parameter specifies how many seconds your notification will continue to be retried for (every retry seconds).
+    //                   Bitte die Hinweise unter https://pushover.net/api#priority beachten!
     
+    PUSHOVER_NORMAL: {serviceName: 'PUSHOVER', pushoverInstance: 'pushover.0', pushoverDevice: '', pushoverSound: '', pushoverPriority:0, pushoverRetry: 0 , pushoverExpire: 0, maxChar: 4000},
+    PUSHOVER_EMERGENCY: {serviceName: 'PUSHOVER', pushoverInstance: 'pushover.0', pushoverDevice: '', pushoverSound: '', pushoverPriority:2, pushoverRetry: 60 , pushoverExpire: 3600, maxChar: 4000},
+              
+
 	//----------------------
     // Email-Konfiguration
     //----------------------
@@ -953,19 +989,18 @@ class MessageHandler {
 		const tmpList = {
 		row : 
 		`<div class="mdui-listitem {mduiClickChangeView} {mduiSwipeDelete} {mduiSwipeChangeView}" style="display:flex;" >
-            <div class="mdui-icon {mdIconColor}" style='flex:0 0 1.5em;'>{mdIcon}&nbsp;</div>
-            <div style='flex:1 1 auto; display:flex; flex-wrap:wrap;'>
+            <div class="mdui-icon {mdIconColor} mdui-center" style='width:32px; flex:0 0 1.5em;'>{mdIcon}&nbsp;</div>
+            <div style='width:calc(100% - 125px); flex:1 1 auto; display:flex; flex-wrap:wrap;'>
                 <div class='mdui-label' style='flex:1 0 100%;'>{msgHeader} </div> 
                 <div class='mdui-subtitle' style='padding-right:0.5em;'>{msgText}</div>
             </div>           
-            <div class="mdui-subtitle mdui-center" style="width:20px;">
-                <div class="{backgroundColor}" style="display:{showCount}; align-items: center;justify-content: center;width:20px;border-radius:1em;">{countEvents}</div>
-            </div>     
 
-            <div class="mdui-subtitle" style="width:40px;">            
-                <span style="font-size:0.9em; margin:4px; opacity:.8; text-align:middle;">{lastDateDay}</span>
-                <br/>
-                <span style="font-size:0.9em; margin:4px; opacity:.8; text-align:middle;">{lastDateTime}</span>
+            <div class="mdui-subtitle mdui-center" style="width:40px;">            
+                <div class="{backgroundColor} mdui-center" style="display:{showCount}; align-items: center; justify-content: center; border-radius:1em;">&nbsp;{countEvents}&nbsp;</div>
+            </div>
+
+            <div class="mdui-subtitle mdui-center" style="width:40px;">            
+                <div class='mdui-label' style='font-size:0.9em; margin:4px; opacity:.8; text-align:center;'>{lastDateDay}<br/>{lastDateTime}</div>                 
             </div>
             <div class="mdui-subtitle mdui-show-notouch" style="width:20px;">
                 {mduiNoSwipeChangeView}
@@ -1138,7 +1173,16 @@ class MessageHandler {
      * @param {any}       inputVal
      * @return {string}   Return string
      */
+    clearInt(inputVal){
+        return (String(inputVal) !== 'undefined') ? inputVal : 0;
+    }
 
+
+    /**
+     * Liefert sauberes String zurück: also '' anstelle von null, false, etc.
+     * @param {any}       inputVal
+     * @return {string}   Return string
+     */
     clearStr(inputVal){
         return (String(inputVal) !== 'undefined') ? String(inputVal) : '';
     }
@@ -1242,7 +1286,7 @@ class MessageHandler {
 
                 //----------------------------------------------------------
                 // TELEGRAM 
-                // {serviceName: 'TELEGRAM', telegramInstance: 'telegram.0', telegramUser: '', telegramChatId: '',count:0, delay:200, maxChar: 4000},
+                // {serviceName: 'TELEGRAM', telegramInstance: 'telegram.0', telegramUser: '', telegramChatId: '', maxChar: 4000},
                 //----------------------------------------------------------
 
                 if(serviceName == 'TELEGRAM' && service == undefined) {
@@ -1275,6 +1319,55 @@ class MessageHandler {
                         sendTo(telegramInstance, {text: telegramMsg, parse_mode: 'Markdown'}   );
                     }
 
+                //----------------------------------------------------------
+                // PUSHOVER
+                // {serviceName: 'PUSHOVER', pushoverInstance: 'pushover.0', pushoverDevice: '', pushoverSound: '', pushoverPriority:0, maxChar: 4000},
+                //----------------------------------------------------------
+
+                } else if(serviceName == 'PUSHOVER' && service == undefined) {
+
+                    // Format PUSHOVER Message                    
+                    let pushoverMsgHeader = "</b>" + this.clearStr(jsonMsg.severity) + "</b>: " + this.clearStr(jsonMsg.msgHeader);
+                    pushoverMsgHeader=this.htmlToText(pushoverMsgHeader);
+
+                    let pushoverMsgText = this.htmlToText(this.clearStr(jsonMsg.msgText));
+
+                    let pushoverInstance = this.clearStr(MESSAGE_EVENTS[defMsgEvent]['pushoverInstance']);
+                    if (this.isLikeEmpty(pushoverInstance) ) {
+                        this.logError("[" + defMsgEvent + "] Konfiguration Pushover ist unvollständig: pushoverInstance ist nicht definiert!");
+                        return;
+                    }
+
+                    let pushoverDevice = this.clearStr(MESSAGE_EVENTS[defMsgEvent]['pushoverDevice']);
+
+                    let pushoverSound = this.clearStr(MESSAGE_EVENTS[defMsgEvent]['pushoverSound']);
+                    if (pushoverSound.length == 0) {
+                        pushoverSound = "none";
+                    }
+
+                    let pushoverPriority = this.clearInt(MESSAGE_EVENTS[defMsgEvent]['pushoverPriority']);
+                    let pushoverRetry = this.clearInt(MESSAGE_EVENTS[defMsgEvent]['pushoverRetry']);
+                    let pushoverExpire = this.clearInt(MESSAGE_EVENTS[defMsgEvent]['pushoverExpire']);
+
+                    if(this.DEBUG) this.log("sendTo(" + pushoverInstance + ", {title:" + pushoverMsgHeader 
+                                                                         + ", message:" + pushoverMsgText 
+                                                                         + ", device:" + pushoverDevice 
+                                                                         + ", priority:" + pushoverPriority 
+                                                                         + ", retry:" + pushoverRetry 
+                                                                         + ", expire:" + pushoverExpire 
+                                                                         + ", sound:" + pushoverSound 
+                                                                         + ", html: 1});");
+                    
+                    sendTo(pushoverInstance, {title: pushoverMsgHeader, 
+                                                message: pushoverMsgText, 
+                                                device: pushoverDevice,
+                                                priority: pushoverPriority, 
+                                                sound: pushoverSound,
+                                                retry: pushoverRetry,
+                                                expire: pushoverExpire,
+                                                html: 1}   );
+
+            
                 //----------------------------------------------------------
                 // EMAIL
                 // EMAIL: {serviceName: 'EMAIL', emailInstance: 'email.0', emailFrom: '', emailTo: [''] },
@@ -1348,14 +1441,14 @@ class MessageHandler {
                     
                     if(this.lightSeverity == undefined) {
                         this.lightSeverity = jsonMsg.severity;
-                         this.log("Setze Light Severity auf: " + this.lightSeverity);
+                         //this.log("Setze Light Severity auf: " + this.lightSeverity);
                     } else {
                         let msgPriority = MESSAGE_DEFAULTS_BY_SEVERITY[jsonMsg.severity].priority;
                         let curLightPriority = MESSAGE_DEFAULTS_BY_SEVERITY[this.lightSeverity].priority;
                         
                         if(msgPriority >= curLightPriority) {
                             this.lightSeverity = jsonMsg.severity;
-                            this.log("Setze Light Severity auf: " + this.lightSeverity);
+                            //this.log("Setze Light Severity auf: " + this.lightSeverity);
                         }
                     }       
 
@@ -1385,9 +1478,9 @@ class MessageHandler {
         // postMessage(msgID,  msgText='', countEvents=0, msgHeader='')
         // ------------------------------------------------------------------
 
-        //postMessage("HOUSE_ALARM", "Bewegung im Haus"); // Alarm: Bewegung im Haus
-        //postMessage("OPEN_WINDOW_INFO", "Badezimmer");  // Fenster geöffnet im Badezimmer
-        //postMessage("WATER_ALARM", "Wasser im Kellerraum."); // Wasseralarm im Kellerraum
+        //postMessage("HOUSE_ALARM", "Bewegung im Haus", 50500); // Alarm: Bewegung im Haus
+        // postMessage("OPEN_WINDOW_INFO", "Badezimmer");  // Fenster geöffnet im Badezimmer
+        // postMessage("WATER_ALARM", "Wasser im Kellerraum."); // Wasseralarm im Kellerraum
         
         //postMessage("WATER_ALARM", "Wasser im Kellerraum."); // Wasseralarm im Kellerraum
        /*
@@ -1424,7 +1517,7 @@ messageHandler.start();
 if(messageHandler.installed) {
     // Testfunktion zum Auslösen / Entfernen von Nachrichten
     // im Normalbetrieb ist die folgende Zeile auszukommentieren!
-   // messageHandler.test();
+     messageHandler.test();
 }
 
 //--------------------------------------------------------
