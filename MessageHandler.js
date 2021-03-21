@@ -9,6 +9,11 @@
  * Support: https://forum.iobroker.net/topic/32207/script-messagehandler-nachrichten-protokollieren-vis
  * ----------------------------------------------------
  * Change Log:
+ *  0.9  - Lovelace Datenpunkt "messages.markdown" hinzugefügt.
+ *         Damit ist es möglich die "Übersicht aller Nachrichten" als Markdown in Lovelace anzuzeigen.
+ *       - Fix Error "setForeignState: Error: The state property "ack" has the wrong type "number" (should be "boolean")"
+ * 
+ *  0.8  - Fix Telegram chatId Ausgabe
  *  0.7  - Neues Nachrichtenereignis für Pushover, Fix MDCSS Ausgabe (Spaltenbreite)
  *  0.6  - MDCSS 2.5 Unterstützung für Swipe-Gesten, neues Nachrichtenereignis LIGHT
  *  0.5  - Neues Attribut visView: VIS-Viewname auf dem über die Message verlinkt werden kann.
@@ -129,7 +134,8 @@
 
  - msgText: Text der Nachricht. im Nachrichtentext sind variable Parameter &1, &2 etc. möglich, die mit der Ausführung der Nachricht ersetzt werden.
 
- - quit: Die Eigenschaft bestimmt, ob die Nachricht in der VIS-Oberfläche für das Material Design Widget löschbar ist (true)
+ - quit: Die Eigenschaft bestimmt, ob die Nachricht in der VIS-Oberfläche für das Material Design Widget löschbar ist (true).
+         Dies ist für alle Meldungen sinnvoll, die nicht "automatisch" durch einen Ablauf wieder zurückgesetzt / entfernt werden.
 
  - visView: VIS-Viewname auf dem über die Message verlinkt werden kann.
 
@@ -240,19 +246,19 @@ const MESSAGE_IDS = {
         //---------------------------------------------
 
         // Alarmanlage
-        HOUSE_ALARM: {msgEvent: [''], logType: 'LAST',  severity: 'ALARM',  msgHeader: "Alarm im Haus", msgText: "", quit: true, visView: 'pageSicherheit', mdIcon: 'notification_important', mdIconColor: '', fontColor: '', backgroundColor: ''},
+        HOUSE_ALARM_ACTIVE: {msgEvent: [''], logType: 'LAST',  severity: 'ALARM',  msgHeader: "Alarm im Haus", msgText: "", quit: true, visView: 'pageSicherheit', mdIcon: 'notification_important', mdIconColor: '', fontColor: '', backgroundColor: ''},
 
         // Wasseralarm
-        WATER_ALARM: {msgEvent: [''], logType: 'LAST',  severity: 'ALARM',  msgHeader: "Wasseralarm", msgText: "", quit: false, visView: 'pageSicherheit', mdIcon: 'waves', mdIconColor: '', fontColor: '', backgroundColor: ''},
+        WATER_ALARM: {msgEvent: [''], logType: 'LAST',  severity: 'ALARM',  msgHeader: "Wasseralarm", msgText: "", quit: true, visView: 'pageSicherheit', mdIcon: 'waves', mdIconColor: '', fontColor: '', backgroundColor: ''},
 
         //Internet Down
         INTERNET_DOWN: {msgEvent: [''], logType: 'All',  severity: 'ALARM',  msgHeader: "Internetverbindung Offline", msgText: "", quit: true, mdIcon: 'error', mdIconColor: '', fontColor: '', backgroundColor: ''},
 
         // Offener Gefrierschrank
-        FREEZER_DOOR_ISOPEN_INFO: {msgEvent: [''], logType: 'LAST',  severity: 'ALARM',  msgHeader: "Gefrierschrank geöffnet", msgText: "Bitte Gefrierschrank schließen", quit: false, mdIcon: 'ac_unit', mdIconColor: '', fontColor: '', backgroundColor: ''},
+        FREEZER_DOOR_ISOPEN_INFO: {msgEvent: [''], logType: 'LAST',  severity: 'ALARM',  msgHeader: "Gefrierschrank geöffnet", msgText: "Bitte Gefrierschrank schließen", quit: true, mdIcon: 'ac_unit', mdIconColor: '', fontColor: '', backgroundColor: ''},
 
         // Offener Kühlschrank
-        FRIDGE_DOOR_ISOPEN_INFO: {msgEvent: [''], logType: 'LAST',  severity: 'ALARM',  msgHeader: "Kühlschrank Garage offen", msgText: "Bitte Kühlschrank schließen", quit: false, mdIcon: 'ac_unit', mdIconColor: '', fontColor: '', backgroundColor: ''},
+        FRIDGE_DOOR_ISOPEN_INFO: {msgEvent: [''], logType: 'LAST',  severity: 'ALARM',  msgHeader: "Kühlschrank Garage offen", msgText: "Bitte Kühlschrank schließen", quit: true, mdIcon: 'ac_unit', mdIconColor: '', fontColor: '', backgroundColor: ''},
 
         //---------------------------------------------
         // WARN-Meldungen
@@ -275,13 +281,19 @@ const MESSAGE_IDS = {
         CALENDAR_EVENTS_TOMORROW: {msgEvent: [''], logType: 'LAST',  severity: 'WARN',  msgHeader: "Morgige Termine", msgText: "", quit: false, mdIcon: 'date_range', mdIconColor: '', fontColor: '', backgroundColor: ''},
 
         // Deutscher Wetter Dienst Warnung
-        DWD_WARN: {msgEvent: [''], logType: 'LAST',  severity: 'WARN',  msgHeader: "Wetterwarnung", msgText: "", quit: true, visView: 'pageKlima', mdIcon: 'track_changes', mdIconColor: '', fontColor: '', backgroundColor: ''},
+        DWD_WARN: {msgEvent: [''], logType: 'LAST',  severity: 'WARN',  msgHeader: "Wetterwarnung", msgText: "", quit: true, visView: 'pageKlima', mdIcon: 'alert-octagon', mdIconColor: '', fontColor: '', backgroundColor: ''},
 
         // Batterie Warnung
-        BATTERIE_Warning: {msgEvent: ['Telegram'], logType: 'LAST',  severity: 'WARN',  msgHeader: "Batterie", msgText: "Bitte Batterie wechseln", quit: false, mdIcon: 'battery_unknown', mdIconColor: '', fontColor: '', backgroundColor: ''},
+        BATTERIE_Warning: {msgEvent: [''], logType: 'LAST',  severity: 'WARN',  msgHeader: "Batterie", msgText: "Bitte Batterie wechseln", quit: false, mdIcon: 'battery_unknown', mdIconColor: '', fontColor: '', backgroundColor: ''},
 
         // Zigbee Warnung
-        DECONZ_Warning: {msgEvent: ['Telegram'], logType: 'LAST',  severity: 'WARN',  msgHeader: "Zigbee", msgText: "Bitte Batterie wechseln", quit: false, mdIcon: 'wifi', mdIconColor: '', fontColor: '', backgroundColor: ''},
+        DECONZ_Warning: {msgEvent: [''], logType: 'LAST',  severity: 'WARN',  msgHeader: "Zigbee", msgText: "Bitte Batterie wechseln", quit: false, mdIcon: 'wifi', mdIconColor: '', fontColor: '', backgroundColor: ''},
+
+        // Erinnerung Fenster lüften!
+        RAUMKLIMA_INFO: {msgEvent: [''], logType: 'LAST',  severity: 'WARN',  msgHeader: "Lüftungserinnerung", msgText: "Bitte Fenster öffnen", quit: false, mdIcon: 'opacity', mdIconColor: '', fontColor: '', backgroundColor: ''},
+
+         // Batterieüberwachung
+        BATTERIE_WARN: {msgEvent: [''], logType: 'LAST',  severity: 'WARN', priority: 300, msgHeader: "Batterie", msgText: "", quit: true, mdIcon: 'battery-unknown', mdIconColor: '', fontColor: '', backgroundColor: ''},
 
 
         //---------------------------------------------
@@ -289,7 +301,7 @@ const MESSAGE_IDS = {
         //---------------------------------------------
 
         // Status Alarmanlage
-        ALARMANLAGE_STATUS: {msgEvent: [''], logType: 'LAST',  severity: 'INFO',  msgHeader: "Alarmanlage", msgText: "", quit: false, visView: 'pageSicherheit', mdIcon: 'security', mdIconColor: '', fontColor: '', backgroundColor: ''},
+        HOUSE_ALARM_STATUS: {msgEvent: [''], logType: 'LAST',  severity: 'INFO',  msgHeader: "Alarmanlage", msgText: "", quit: false, visView: 'pageSicherheit', mdIcon: 'security', mdIconColor: '', fontColor: '', backgroundColor: ''},
 
         // Offene Fenster
         WINDOW_ISCLOSED_INFO: {msgEvent: [''], logType: 'LAST',  severity: 'INFO',  msgHeader: "Fenster sind zu", msgText: "", quit: false, mdIcon: 'tab', mdIconColor: '', fontColor: '', backgroundColor: ''},
@@ -304,37 +316,37 @@ const MESSAGE_IDS = {
         PLUGS_ON_INFO: {msgEvent: [''], logType: 'LAST',  severity: 'INFO',  msgHeader: "Steckdosen angeschaltet", msgText: "", quit: false, visView: '',mdIcon: '', mdIconColor: '', fontColor: '', backgroundColor: ''},
 
         // Post im Briefkasten
-        LAST_POSTENTRACE_INFO: {msgEvent: ['TELEGRAM', 'LIGHT'], logType: 'LAST',  severity: 'INFO',  msgHeader: "Briefkasten", msgText: "Neue Post im Briefkasten!", mdIcon: 'drafts', quit: true, mdIconColor: '', fontColor: '', backgroundColor: ''},
+        LAST_POSTENTRACE_INFO: {msgEvent: ['PUSHOVER_NORMAL', 'LIGHT'], logType: 'LAST',  severity: 'INFO',  msgHeader: "Briefkasten", msgText: "Neue Post im Briefkasten!", mdIcon: 'email-variant', quit: true, mdIconColor: '', fontColor: '', backgroundColor: ''},
 
         // Müllabfuhr-Termine
         NEXT_GARBAGE_INFO: {msgEvent: [''], logType: 'LAST',  severity: 'INFO',  msgHeader: "Müll", msgText: "Tonne: &1, am &2 ", quit: true, visView: '', mdIcon: 'delete',  mdIconColor: '', fontColor: '', backgroundColor: ''},
 
         // Anwesende Personen
-        PERSONS_AVAILABLE_INFO: {msgEvent: [''], logType: 'LAST',  severity: 'INFO',  msgHeader: "Anwesende Personen", msgText: "", quit: false, visView: '', mdIcon: 'how_to_reg', mdIconColor: '', fontColor: '', backgroundColor: ''},
+        PERSONS_AVAILABLE_INFO: {msgEvent: [''], logType: 'LAST',  severity: 'INFO',  msgHeader: "Anwesende Personen", msgText: "", quit: false, visView: '', mdIcon: 'account', mdIconColor: '', fontColor: '', backgroundColor: ''},
 
         //Kamera Bewegung erkannt
         CAMERA_MOTION: {logType: 'All',  severity: 'INFO',  msgHeader: "Bewegung erkannt", msgText: "", quit: true, visView: '', mdIcon: 'camera_alt', mdIconColor: '', fontColor: '', backgroundColor: ''},
 
         // Verpasster Anruf (des Tages)
-        MISSED_CALLS: {msgEvent: [''], logType: 'LAST',  severity: 'INFO',  msgHeader: "Verpasste Anrufe", msgText: "", quit: true, visView: 'pageKommunikation', mdIcon: 'call_missed', mdIconColor: '', fontColor: '', backgroundColor: ''},
+        MISSED_CALLS: {msgEvent: [''], logType: 'LAST',  severity: 'INFO',  msgHeader: "Verpasste Anrufe", msgText: "", quit: true, visView: 'pageKommunikation', mdIcon: 'call-missed', mdIconColor: '', fontColor: '', backgroundColor: ''},
 
         // Verpasster Anruf (des Tages)
-        LAST_CALL: {msgEvent: [''], logType: 'LAST',  severity: 'INFO',  msgHeader: "Letzter Anruf", msgText: "", quit: true, visView: 'pageKommunikation', mdIcon: 'call', mdIconColor: '', fontColor: '', backgroundColor: ''},
+        LAST_CALL: {msgEvent: [''], logType: 'LAST',  severity: 'INFO',  msgHeader: "Letzter Anruf", msgText: "", quit: true, visView: 'pageKommunikation', mdIcon: 'call-received', mdIconColor: '', fontColor: '', backgroundColor: ''},
 
         // Corono-Statistic 
-        CORONA_STATS_CASES: {msgEvent: [''], logType: 'LAST',  severity: 'INFO',  msgHeader: "SARS-coV-2", msgText: "", quit: false, visView: '', mdIcon: 'local_hospital', mdIconColor: '', fontColor: '', backgroundColor: ''},
+        CORONA_STATS_CASES: {msgEvent: [''], logType: 'LAST',  severity: 'INFO', priority: 500, msgHeader: "SARS-coV-2", msgText: "", quit: false, visView: '', mdIcon: 'biohazard', mdIconColor: '', fontColor: '', backgroundColor: ''},
 
         // Temperatur
-        TEMPERATURE_INFO: {msgEvent: [''], logType: 'LAST',  severity: 'INFO',  msgHeader: "Temperaturen", msgText: "", mdIcon: 'wb_sunny', quit: false, visView: 'pageKlima', mdIconColor: '', fontColor: '', backgroundColor: ''},
+        TEMPERATURE_INFO: {msgEvent: [''], logType: 'LAST',  severity: 'INFO',  msgHeader: "Temperaturen", msgText: "", mdIcon: 'temperature-celsius', quit: false, visView: 'pageKlima', mdIconColor: '', fontColor: '', backgroundColor: ''},
 
         // Sonos
-        SONOS_INFO: {msgEvent: [''], logType: 'LAST',  severity: 'INFO',  msgHeader: "Sonos Küche", msgText: "", mdIcon: 'audiotrack', quit: false, visView: 'pageMultimedia', mdIconColor: '', fontColor: '', backgroundColor: ''},
+        SONOS_INFO: {msgEvent: [''], logType: 'LAST',  severity: 'INFO',  msgHeader: "Sonos Küche", msgText: "", mdIcon: 'surround-sound', quit: false, visView: 'pageMultimedia', mdIconColor: '', fontColor: '', backgroundColor: ''},
 
         // Logitech Harmony Info
-        HARMONY_INFO: {msgEvent: [''], logType: 'LAST',  severity: 'INFO',  msgHeader: "Wohnzimmer Multimedia", msgText: "", mdIcon: 'settings_remote', quit: false, visView: 'pageMultimedia', mdIconColor: '', fontColor: '', backgroundColor: ''},
+        HARMONY_INFO: {msgEvent: [''], logType: 'LAST',  severity: 'INFO',  msgHeader: "Wohnzimmer Multimedia", msgText: "", mdIcon: 'play-network-outline', quit: false, visView: 'pageMultimedia', mdIconColor: '', fontColor: '', backgroundColor: ''},
 
         //Spritpreis-Info
-        TANK_INFO: {logType: 'LAST',  severity: 'INFO',  msgHeader: "Spritpreis", msgText: "", quit: true, mdIcon: 'time_to_leave', mdIconColor: '', fontColor: '', backgroundColor: ''},
+        TANK_INFO: {logType: 'LAST',  severity: 'INFO', priority: 400, msgHeader: "Spritpreis", msgText: "", quit: true, mdIcon: 'gas-station', mdIconColor: '', fontColor: '', backgroundColor: ''},
 
        //Update ioBroker
         UPDATE_INFO: {logType: 'LAST',  severity: 'INFO',  msgHeader: "Update ioBroker", msgText: "", quit: true, mdIcon: 'cached', mdIconColor: '', fontColor: '', backgroundColor: ''},
@@ -343,7 +355,7 @@ const MESSAGE_IDS = {
         GUEST_WIFI: {msgEvent: [''], logType: 'LAST',  severity: 'INFO',  msgHeader: "WLAN", msgText: "", quit: false, mdIcon: 'wifi', mdIconColor: '', fontColor: '', backgroundColor: ''},
 
         // Batterieüberwachung
-        BATTERIE_INFO: {msgEvent: [''], logType: 'LAST',  severity: 'INFO',  msgHeader: "Batterie", msgText: "", quit: true, mdIcon: 'battery_alert', mdIconColor: '', fontColor: '', backgroundColor: ''},
+        BATTERIE_INFO: {msgEvent: [''], logType: 'LAST',  severity: 'INFO', priority: 300, msgHeader: "Batterie", msgText: "", quit: true, mdIcon: 'battery-unknown', mdIconColor: '', fontColor: '', backgroundColor: ''},
 
 };
 
@@ -355,10 +367,10 @@ const MESSAGE_IDS = {
 //-----------------------------------------------------------------------
 
 const MESSAGE_DEFAULTS_BY_SEVERITY = {
-    INFO: {msgEvent: ['PUSHOVER_NORMAL'], logType: 'ALL',  severity: 'INFO',  priority: 1000, msgHeader: "", msgText: "", quit: false, mdIcon: 'info', mdIconColor: 'mdui-blue', fontColor: '', backgroundColor: 'mdui-blue-bg'},
-    WARN: {msgEvent: ['LIGHT','PUSHOVER_NORMAL'], logType: 'ALL',  severity: 'WARN',  priority: 2000, msgHeader: "", msgText: "", quit: false, mdIcon: 'warning', mdIconColor: 'mdui-amber', fontColor: '', backgroundColor: 'mdui-amber-bg'},
-    ERROR: {msgEvent: ['TELEGRAM','LIGHT', 'PUSHOVER_NORMAL'], logType: 'ALL',  severity: 'ERROR', priority: 3000, msgHeader: "", msgText: "", quit: false, mdIcon: 'error', mdIconColor: 'mdui-orange', fontColor: '', backgroundColor: 'mdui-orange-bg'},
-    ALARM: {msgEvent: ['TELEGRAM', 'EMAIL','LIGHT', 'PUSHOVER_EMERGENCY'], logType: 'ALL',  severity: 'ALARM', priority: 4000, msgHeader: "", msgText: "", quit: false, mdIcon: 'error', mdIconColor: 'mdui-red', fontColor: '', backgroundColor: 'mdui-red-bg'}
+    INFO: {msgEvent: [''], logType: 'ALL',  severity: 'INFO',  priority: 1000, msgHeader: "", msgText: "", quit: false, mdIcon: 'info', mdIconColor: 'mdui-blue', iconColorHtml: '#2E9AFE', fontColor: '', backgroundColor: 'mdui-blue-bg'},
+    WARN: {msgEvent: ['LIGHT'], logType: 'ALL',  severity: 'WARN',  priority: 2000, msgHeader: "", msgText: "", quit: false, mdIcon: 'warning', mdIconColor: 'mdui-amber', iconColorHtml: '#FF8000', fontColor: '', backgroundColor: 'mdui-amber-bg'},
+    ERROR: {msgEvent: ['LIGHT', 'PUSHOVER_NORMAL'], logType: 'ALL',  severity: 'ERROR', priority: 3000, msgHeader: "", msgText: "", quit: false, mdIcon: 'error', mdIconColor: 'mdui-orange', iconColorHtml: '#FE2E2E',fontColor: '', backgroundColor: 'mdui-orange-bg'},
+    ALARM: {msgEvent: ['EMAIL','LIGHT', 'PUSHOVER_EMERGENCY'], logType: 'ALL',  severity: 'ALARM', priority: 4000, msgHeader: "", msgText: "", quit: false, mdIcon: 'error', mdIconColor: 'mdui-red', iconColorHtml: '#FE2E2E', fontColor: '', backgroundColor: 'mdui-red-bg'}
 };
 
 //-----------------------------------------------------------------------
@@ -404,8 +416,12 @@ const MESSAGE_EVENTS = {
     //                   Bitte die Hinweise unter https://pushover.net/api#priority beachten!
     
     PUSHOVER_NORMAL: {serviceName: 'PUSHOVER', pushoverInstance: 'pushover.0', pushoverDevice: '', pushoverSound: '', pushoverPriority:0, pushoverRetry: 0 , pushoverExpire: 0, maxChar: 4000},
-    PUSHOVER_EMERGENCY: {serviceName: 'PUSHOVER', pushoverInstance: 'pushover.0', pushoverDevice: '', pushoverSound: '', pushoverPriority:2, pushoverRetry: 60 , pushoverExpire: 3600, maxChar: 4000},
-              
+    PUSHOVER_EMERGENCY: {serviceName: 'PUSHOVER', pushoverInstance: 'pushover.0', pushoverDevice: '', pushoverSound: '', pushoverPriority:2, pushoverRetry: 0 , pushoverExpire: 3600, maxChar: 4000},
+
+
+    // LoveLace - Benachrichtungen, die direkt im Lovelace Nachrichtensystem ausgegeben werden (experimentell)
+    LOVELACE: {serviceName: 'LOVELACE', lovelaceInstance: 'lovelace.0',  maxChar: 4000},
+
 
 	//----------------------
     // Email-Konfiguration
@@ -468,6 +484,7 @@ const MESSAGE_EVENTS = {
                                       ]
                },
 
+    
 
 };
 
@@ -526,8 +543,9 @@ class MessageHandler {
 		//this.states.push( { id:'updatePressed',common:{name:'update button pressed', write:true, type:'boolean', def:'false', role:'button' }} );
 		this.states.push( { id:'newMessage',     common:{name:'newMessage', write:false, type: 'string', def:""} } );
 		this.states.push( { id:'messages.json',     common:{name:'messages as JSON', write:false, type: 'string', def:JSON.stringify(this.messageList)} } );
-        this.states.push( { id:'messages.table',      common:{name:'messages as table', write:false, type: 'string', role:'html' }} );
-        this.states.push( { id:'messages.list',       common:{name:'messages as list', write:false, type: 'string', role:'html' }} );
+        this.states.push( { id:'messages.table',      common:{name:'messages as table', write:false, type: 'string', role:'html', def:'' }} );
+        this.states.push( { id:'messages.markdown',      common:{name:'messages as markdown', write:false, type: 'string', role:'html', def:'' }} );
+        this.states.push( { id:'messages.list',       common:{name:'messages as list', write:false, type: 'string', role:'html', def:'' }} );
         this.states.push( { id:'messages.count',      common:{name:'messages count', write:false, type:'number', def:0 }} );
         this.states.push( { id:'messages.filter',     common:{name:'messages filter', write:true, type: 'string', def:''}} );
         this.states.push( { id:'messages.lastUpdate', common:{name:'messages last update', write:false, type: 'number', def:0 }} );
@@ -542,7 +560,7 @@ class MessageHandler {
 
         this.MESSAGE_FIELDS_OUTPUT = [
             "msgID", "msgHeader", "msgText", "countEvents",  "firstDate", "lastDate",
-            "logType",  "severity", "priority", "quit", "visView", "msgEvent", "mdIcon", "mdIconColor", "fontColor", "backgroundColor"
+            "logType",  "severity", "priority", "quit", "visView", "msgEvent", "mdIcon", "mdIconColor", "fontColor", "backgroundColor", "iconColorHtml"
         ];
 
         //-----------------------------------------------------------------------
@@ -674,6 +692,7 @@ class MessageHandler {
             this.setState('messages.count', 0);
             this.setState('messages.clearPressed', false);
 
+            
             this.onBuildHTML();
 
         }
@@ -734,7 +753,7 @@ class MessageHandler {
                     }
                 }
             }
-        
+            
 			// Auslösen Nachrichtenereignis (sofern definiert)
 			this.msgEvent(jsonMsg);
 		
@@ -843,7 +862,7 @@ class MessageHandler {
     }
         
     onBuildHTML() { try {
-        
+            
         let json = [];
         let jsonMsg = {};
 
@@ -875,7 +894,7 @@ class MessageHandler {
             }
 
             jsonMsg.showCount = jsonMsg.countEvents > 0 ? "flex" : "none";
-
+            jsonMsg.countEventsMarkdown = jsonMsg.countEvents > 0 ? "*" + jsonMsg.countEvents +"*" : "";
 
             // Swipe Delete
             jsonMsg.mduiSwipeDelete = jsonMsg.quit ? 
@@ -896,7 +915,14 @@ class MessageHandler {
                 jsonMsg.mduiSwipeChangeView = 
                     `mdui-swipe-right?dist:64;background:blue;icon:exit_to_app;action:changeView(` + jsonMsg.visView +`)`; 
             } 
+                                // Sending simple Markdown, because Markdown V2 does not support Unicode Characters?
+            jsonMsg.msgTextMD =  this.clearStr(jsonMsg.msgText);
+            jsonMsg.msgTextMD =  this.htmlToMarkdown(jsonMsg.msgTextMD);
+            jsonMsg.msgTextMD = this.removeMarkdown(jsonMsg.msgTextMD, null);
             
+            
+            jsonMsg.msgHeaderMD =  this.clearStr(jsonMsg.msgHeader);
+
 
             // Touch/Click Change View
             jsonMsg.mduiClickChangeView=  "";
@@ -954,6 +980,7 @@ class MessageHandler {
         if (this.existState(idState+'.lastClear')) ts = this.getState(idState+'.lastClear').val;
 
         this.convertJSON2HTML(json, idState, filter);
+        this.convertJSON2Markdown(json, idState, filter);
       
     } catch(err) { this.logError( 'onBuildHTML: '+err.message ); }  }
     
@@ -989,10 +1016,10 @@ class MessageHandler {
 		const tmpList = {
 		row : 
 		`<div class="mdui-listitem {mduiClickChangeView} {mduiSwipeDelete} {mduiSwipeChangeView}" style="display:flex;" >
-            <div class="mdui-icon {mdIconColor} mdui-center" style='width:32px; flex:0 0 1.5em;'>{mdIcon}&nbsp;</div>
+            <div class="mdui-icon {mdIconColor} mdui-center" style='width:32px; flex:1 0 2.5em;'>{mdIcon}&nbsp;</div>
             <div style='width:calc(100% - 125px); flex:1 1 auto; display:flex; flex-wrap:wrap;'>
                 <div class='mdui-label' style='flex:1 0 100%;'>{msgHeader} </div> 
-                <div class='mdui-subtitle' style='padding-right:0.5em;'>{msgText}</div>
+                <div class='mdui-subtitle' style='padding-right:0.5em;word-wrap:break-word;' >{msgText}</div>
             </div>           
 
             <div class="mdui-subtitle mdui-center" style="width:40px;">            
@@ -1048,6 +1075,58 @@ class MessageHandler {
 		this.setState(idState+'.count', count);  
 		this.setState(idState+'.lastUpdate', +new Date());   
 	}
+
+	/**
+	 * Convert JSON 2 MARKDOWN for Lovelace
+	 */
+	convertJSON2Markdown(json, idState, filter) {
+
+		const tmpTable = {
+		header : 
+		`>\n| Symbol                                                       | Beschreibung                                                 | Anzahl |             Zeit |
+| :----------------------------------------------------------- | :----------------------------------------------------------- | :----: | ---------------: |\n`,
+		
+        // Example
+        // | <font color="#FF0000"> <ha-icon icon="mdi:security" style="font-color:red"></font></ha-icon> | **Lüftungserinnerung** <br />Bitte lüften in den folgenden Räumen:["Bad","Arbeitszimmer","Erik","Wohnzimmer"] |  *5*   | Heute<br />15:15 |
+        row : 
+		`| <font color="{iconColorHtml}"> <ha-icon icon="mdi:{mdIcon}"></font></ha-icon> | **{msgHeaderMD}** <br />{msgTextMD}|  {countEventsMarkdown}  | {lastDateDay}<br />{lastDateTime} |\n`
+		}
+
+
+		// build htmlTable and htmlList
+		let htmlTable  = tmpTable.header;
+		let htmlList  = "";
+		let entry, tr;
+		let count = 0;
+
+		// filter as regex?
+		if ( filter!==undefined && typeof filter == 'string' && filter.startsWith('/') && filter.endsWith('/') && (filter.length>=2) )  {
+			filter = new RegExp(filter.substr(1,filter.length-2), 'i');
+		}
+
+		for (var i = 0; i < json.length && count < this.MAX_TABLE_ROWS; i++) { 
+			entry = json[i];
+
+			if (this.fitsFilter(':'+entry.severity + ':' + entry.datetime + ':' + entry.msgHeader + ':' + entry.msgText + ':',filter)) {
+
+				tr = tmpTable.row;   
+				for (let [key, value] of Object.entries(entry)) {
+                    var replace = '{'+key+'}';
+                    var re = new RegExp(replace,"g");
+                    tr = tr.replace(re, value);
+                }
+				htmlTable+=tr;
+
+				count++;
+			}
+		
+		}
+		
+	    this.setState(idState+'.markdown', htmlTable);  
+		
+		
+	}
+
     
 
     compareNodesTimestampsAfterPriority (a, b) {
@@ -1117,7 +1196,7 @@ class MessageHandler {
 	// like setStateDelayed(), but adds statepath to state_ID and checks if state exists, when not, creates it
     setStateDelayed(id,value,delay) {
         if ( !this.existState(id) ) this.createState(id,value,undefined);
-        else setState( this.STATE_PATH + id, value, delay);
+        else setStateDelayed( this.STATE_PATH + id, value, false, delay);
     }
     
     // like cresteState(), but adds statepath to state_ID and checks if state exists, when not, creates it
@@ -1311,13 +1390,47 @@ class MessageHandler {
                     let telegramChatId = this.clearStr(MESSAGE_EVENTS[defMsgEvent]['telegramChatId']);
 
                     if (telegramChatId.length > 0) {
-                        sendTo(telegramInstance, {ChatId: telegramChatId, text: telegramMsg, parse_mode: 'Markdown'}   );
+                        sendTo(telegramInstance, {chatId: telegramChatId, text: telegramMsg, parse_mode: 'Markdown'}   );
                     }
 
                     if (!(telegramUser.length > 0 || telegramChatId.length > 0)) {
                         if(this.DEBUG) this.log("sendTo(" + telegramInstance + ", {text:" + telegramMsg + ", parse_mode: 'Markdown'});");
                         sendTo(telegramInstance, {text: telegramMsg, parse_mode: 'Markdown'}   );
                     }
+
+                //----------------------------------------------------------
+                // LOVELACE 
+                // {serviceName: 'LOVELACE', lovelaceInstance: 'lovelace.0',  maxChar: 4000},
+                //----------------------------------------------------------
+
+                } else if(serviceName == 'LOVELACE' && (service == undefined || service == 'LOVELACE')) {
+
+
+                    // Format LOVELACE Message                    
+                    // Sending simple Markdown, because Markdown V2 does not support Unicode Characters?
+                    let msgHeader = "*" + this.clearStr(jsonMsg.severity) + "*: " + this.clearStr(jsonMsg.msgHeader) 
+                    msgHeader=this.htmlToText(msgHeader);
+
+                    let icon = 
+                    'content: |\n' +
+                    '  <ha-icon icon=\"mdi:home-assistant\"></ha-icon>\n' +
+                    'type: markdown';
+
+                    let msgText = this.clearStr(jsonMsg.msgText);
+                    msgText=this.htmlToText(msgText);
+                    
+                    let lovelaceInstance = this.clearStr(MESSAGE_EVENTS[defMsgEvent]['lovelaceInstance']);
+                    if (this.isLikeEmpty(lovelaceInstance) ) {
+                        this.logError("[" + defMsgEvent + "] Konfiguration LOVELACE ist unvollständig: lovelaceInstance ist nicht definiert!");
+                        return;
+                    }
+                    
+                    if(jsonMsg.logType == "LAST") { 
+                        sendTo(lovelaceInstance, 'send', {message: msgText, title: msgHeader, notification_id: jsonMsg.msgID}); // full version
+
+                    } 
+                    
+              
 
                 //----------------------------------------------------------
                 // PUSHOVER
@@ -1469,6 +1582,78 @@ class MessageHandler {
         text = text.replace(/<\/?[^>]+>/ig, " "); // Remove all HTML-Tags!!!
         return text;
     }
+
+        //Helper Convert HTML to Text
+    htmlToMarkdown(text) {
+        text = text.replace("</br>", "<br />");
+        text = text.replace("<br>", "<br />");
+        //text = text.replace(/<\/?[^>]+>/ig, " "); // Remove all HTML-Tags!!!
+        return text;
+    }
+
+    removeMarkdown(md, options) {
+        options = options || {};
+        options.listUnicodeChar = options.hasOwnProperty('listUnicodeChar') ? options.listUnicodeChar : false;
+        options.stripListLeaders = options.hasOwnProperty('stripListLeaders') ? options.stripListLeaders : true;
+        options.gfm = options.hasOwnProperty('gfm') ? options.gfm : true;
+        options.useImgAltText = options.hasOwnProperty('useImgAltText') ? options.useImgAltText : true;
+
+        var output = md || '';
+
+        // Remove horizontal rules (stripListHeaders conflict with this rule, which is why it has been moved to the top)
+        output = output.replace(/^(-\s*?|\*\s*?|_\s*?){3,}\s*$/gm, '');
+
+        try {
+            if (options.stripListLeaders) {
+            if (options.listUnicodeChar)
+                output = output.replace(/^([\s\t]*)([\*\-\+]|\d+\.)\s+/gm, options.listUnicodeChar + ' $1');
+            else
+                output = output.replace(/^([\s\t]*)([\*\-\+]|\d+\.)\s+/gm, '$1');
+            }
+            if (options.gfm) {
+            output = output
+                // Header
+                .replace(/\n={2,}/g, '\n')
+                // Fenced codeblocks
+                .replace(/~{3}.*\n/g, '')
+                // Strikethrough
+                .replace(/~~/g, '')
+                // Fenced codeblocks
+                .replace(/`{3}.*\n/g, '');
+            }
+            output = output
+            // Remove HTML tags
+           // .replace(/<[^>]*>/g, '')
+            // Remove setext-style headers
+            .replace(/^[=\-]{2,}\s*$/g, '')
+            // Remove footnotes?
+            .replace(/\[\^.+?\](\: .*?$)?/g, '')
+            .replace(/\s{0,2}\[.*?\]: .*?$/g, '')
+            // Remove images
+            .replace(/\!\[(.*?)\][\[\(].*?[\]\)]/g, options.useImgAltText ? '$1' : '')
+            // Remove inline links
+            .replace(/\[(.*?)\][\[\(].*?[\]\)]/g, '$1')
+            // Remove blockquotes
+            .replace(/^\s{0,3}>\s?/g, '')
+            // Remove reference-style links?
+            .replace(/^\s{1,2}\[(.*?)\]: (\S+)( ".*?")?\s*$/g, '')
+            // Remove atx-style headers
+            .replace(/^(\n)?\s{0,}#{1,6}\s+| {0,}(\n)?\s{0,}#{0,} {0,}(\n)?\s{0,}$/gm, '$1$2$3')
+            // Remove emphasis (repeat the line to remove double emphasis)
+            .replace(/([\*_]{1,3})(\S.*?\S{0,1})\1/g, '$2')
+            .replace(/([\*_]{1,3})(\S.*?\S{0,1})\1/g, '$2')
+            // Remove code blocks
+            .replace(/(`{3,})(.*?)\1/gm, '$2')
+            // Remove inline code
+            .replace(/`(.+?)`/g, '$1')
+            // Replace two or more newlines with exactly two? Not entirely sure this belongs here...
+            .replace(/\n{2,}/g, '\n\n');
+        } catch(e) {
+            console.error(e);
+            return md;
+        }
+        return output;
+    };
 
 	
     test() {
