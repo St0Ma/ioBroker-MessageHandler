@@ -932,13 +932,14 @@ class MessageStateCreator {
                                          
                                             let decimals = MsgConf[MSGTEXT_KEY].decimals;                   
                                             let format = MsgConf[MSGTEXT_KEY].format;  
-                                            let formatDate = MsgConf[MSGTEXT_KEY].formatDate;  
+                                            let frmDate = MsgConf[MSGTEXT_KEY].formatDate;  
 
                                             if( ! this.isLikeEmpty(decimals) && !this.isLikeEmpty(format)) { 
                                                 val = formatValue(val, decimals, format);
 
-                                            } else if( !this.isLikeEmpty(formatDate)) { 
-                                                 val = formatDate(new Date(val).getTime(), format);
+                                            } else if( !this.isLikeEmpty(frmDate)) { 
+                                                 val = formatDate(new Date(val), frmDate);
+                                                 
                                             
                                             } else if (!this.isLikeEmpty(format)) {
                                                 val = formatValue(val, 0, format);
