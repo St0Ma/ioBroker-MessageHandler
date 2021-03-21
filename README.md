@@ -11,9 +11,12 @@ Zusätzlich gibt es die Möglichkeit mit einer Nachricht Ereignisse zu verknüpf
 (Senden einer Email, Telegram-Pushnachricht, Pushover-Nachricht, etc.).
 
 Beispiel-VIS-Ansicht im Material Design:
+
+
 ![Material](https://github.com/St0Ma/ioBroker-MessageHandler/blob/master/vis/demo_messagehandler.gif)
 
 Beispiel-Lovelace-Ansicht:
+
 ![Lovelace](https://github.com/St0Ma/ioBroker-MessageHandler/blob/master/vis/lovelace.png)
 
 
