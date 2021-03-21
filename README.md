@@ -1,13 +1,20 @@
 # ioBroker-MessageHandler
 
 Protokollierung von Nachrichten / Ereignissen in ioBroker.
-Nachrichten können damit als kompakte Darstellung des globalen Systemzustands in VIS verwendet werden.
 
 Die Idee ist es, alle relevanten Informationen auf "einen Blick" zu erkennen. 
 Wichtige und kritische Ereignisse werden daher in der Liste zentral oben platziert. 
 Unwichtigere Informationen eher unten.
 
+Nachrichten können damit als kompakte Darstellung des globalen Systemzustands in VIS/Lovelace verwendet werden.
+Zusätzlich gibt es die Möglichkeit mit einer Nachricht Ereignisse zu verknüpfen und beim Erstellen der Narchicht automatisch auszulösen
+(Senden einer Email, Telegram-Pushnachricht, Pushover-Nachricht, etc.).
+
+Beispiel-VIS-Ansicht im Material Design:
 ![Material](https://github.com/St0Ma/ioBroker-MessageHandler/blob/master/vis/demo_messagehandler.gif)
+
+Beispiel-Lovelace-Ansicht:
+![Lovelace](https://github.com/St0Ma/ioBroker-MessageHandler/blob/master/vis/lovelace.png)
 
 
 Beispiele für Nachrichten:
@@ -87,10 +94,14 @@ Beispiele für Nachrichten:
 
 3. Das Javascript ["MessageStateCreator"](https://github.com/St0Ma/ioBroker-MessageHandler/raw/master/MessageStateCreator.js)  installieren und starten (optional)
 
-4. VIS-Ausgabe: 
+4. VIS-Ausgabe (optional)
 
  - Material Design CSS 2.0 Card: Der Inhalt der ["cardMessages.view"](https://github.com/St0Ma/ioBroker-MessageHandler/raw/master/vis/cardMessages.view) kann in VIS als eigener VIEW importiert werden.
  - HTML-Ausgabe: Der Inhalt der ["cardMessages_html.view"](https://github.com/St0Ma/ioBroker-MessageHandler/raw/master/vis/cardMessages_html.view) kann in VIS als eigener VIEW importiert werden.
+
+5. Lovelace-Ausgabe (optional)
+
+  - Erstellen einer "Markdown-Card" mit dem Inhalt aus dem Datenpunkt {0_userdata.0.messageHandler.messages.markdown}.
 
 # Konfiguration
 
@@ -109,6 +120,9 @@ Zur Konfiguration sind zwei Schritte erforderlich:
    Im Javascript selbst sind auch Beispiele enthalten, wie die Konfiguration durchgeführt wird.
 
 # Versionshistorie
+ *  0.9  - Lovelace Datenpunkt "messages.markdown" hinzugefügt.
+          Damit ist es möglich die "Übersicht aller Nachrichten" als Markdown in Lovelace anzuzeigen.
+        - Fix Error "setForeignState: Error: The state property "ack" has the wrong type "number" (should be "boolean")"
  * 0.7  - Integration neues Nachrichtenereignis PUSHOVER, Fix Spaltenbreite in VIS
  * 0.6  - Upgrade auf MDCSS 2.5, Unterstützung Swipe-Gesten, Nachrichtenereignis LIGHT
  * 0.5  - MessageHandler: Neues Attribut visView: VIS-Viewname auf dem über die Message verlinkt werden kann.
