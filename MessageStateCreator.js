@@ -9,6 +9,7 @@
  * Support: https://forum.iobroker.net/topic/32207/script-messagehandler-nachrichten-protokollieren-vis
  * ----------------------------------------------------
  * Change Log:
+ *  0.7  - Ergänzung zur Formatierung von Zeitstempel Datenpunkten (Idee von BoehserWolf) 
  *  0.6  - Minor fix DWD
  *  0.5  - Erweiterung um Attribute Wartezeit delayTime und Wiederholungszeit repatTime
  *         Möglichkeit der Zahlenformatierung über Attribute decimals und format
@@ -147,6 +148,14 @@ const MESSAGE_EVENTS = [
         //                über die Attribute format und decimals:
         //                Beispiel:
         //                msgText_2: {dp: 'deconz.0.Sensors.18.temperature', format:'"##,#"', decimals:1},
+        //
+        //                Eine Aufbereitung von Datumsfeldern / Zeitstempeln in Datenpunkten kann 
+        //                über eine vorgegebene Notation im Attribut "formatDate" erfolgen.
+        //                Die möglichen Notationen sind hier einsehbar:
+        //                https://github.com/ioBroker/ioBroker.javascript/blob/master/docs/en/javascript.md#formatdate
+        //
+        //                Beispiel: Ausgabe des Datenpunkts mit einer Begin-Zeit im Format "TT.MM.YY SS:mm":
+        //                msgText_3: {dp: 'dwd.0.warning.begin', formatDate:'TT.MM.YY SS:mm'},
         //                
         //                Die Attribute im einzelnen:
         //                format: '#.###,##' // Ausgabe mit 1000er Trennzeichen Punkt und Komma
@@ -175,7 +184,8 @@ const MESSAGE_EVENTS = [
     // Forum IOBroker: https://forum.iobroker.net/topic/31676/vorlage-generische-batteriestands%C3%BCberwachung-vis-ausgabe
     {
         msgID: 'WINDOW_ISCLOSED_INFO', 
-        triggerDP: ['javascript.0.FensterUeberwachung.RoomsWithOpenWindows'], // , 'javascript.0.FensterUeberwachung.WindowsOpen'
+        
+        triggerDP: ['javascript.0.FensterUeberwachung.RoomsWithOpenWindows', 'javascript.0.FensterUeberwachung.WindowsOpen'], // , 'javascript.0.FensterUeberwachung.WindowsOpen'
         postMsgDP: {dp:'javascript.0.FensterUeberwachung.WindowsOpen', comp: '==', val:0},
         removeMsgDP: {dp:'javascript.0.FensterUeberwachung.WindowsOpen', comp: '>', val:0}, // Nachricht enfernen, wenn die Bedingung eintritt
         msgText_1: {text: ''},
@@ -186,9 +196,9 @@ const MESSAGE_EVENTS = [
     // Nachrichten für länger geöffnete Fenster
     {
         msgID: 'WINDOW_ISLONGEROPEN_GARAGE', 
-        triggerDP: ['javascript.0.FensterUeberwachung.Garage.IsOpen'],
-        postMsgDP: {dp:'javascript.0.FensterUeberwachung.Garage.IsOpen', comp: '==', val: true, delayTime: 9000, repeatTime:0},  
-        removeMsgDP: {dp:'javascript.0.FensterUeberwachung.Garage.IsOpen', comp: '!=', val: true}, // Nachricht enfernen, wenn die Bedingung eintritt
+        triggerDP: ['javascript.0.FensterUeberwachung.Garage.RoomOpenCount'],
+        postMsgDP: {dp:'javascript.0.FensterUeberwachung.Garage.RoomOpenCount', comp: '==', val: true, delayTime: 9000, repeatTime:0},  
+        removeMsgDP: {dp:'javascript.0.FensterUeberwachung.Garage.RoomOpenCount', comp: '!=', val: true}, // Nachricht enfernen, wenn die Bedingung eintritt
         msgText_1: {text: 'Fenster Garage länger als 15 Minuten geöffnet'},
         countEventsDP: 'javascript.0.FensterUeberwachung.Garage.RoomOpenWindowCount'
     },
@@ -196,19 +206,36 @@ const MESSAGE_EVENTS = [
     // Nachrichten für länger geöffnete Fenster
     {
         msgID: 'WINDOW_ISLONGEROPEN_HAUS', 
-        triggerDP: ['javascript.0.FensterUeberwachung.Haus.IsOpen'],
-        postMsgDP: {dp:'javascript.0.FensterUeberwachung.Haus.IsOpen', comp: '==', val: true, delayTime: 9000, repeatTime:0},  
-        removeMsgDP: {dp:'javascript.0.FensterUeberwachung.Haus.IsOpen', comp: '!=', val: true}, // Nachricht enfernen, wenn die Bedingung eintritt
+        triggerDP: ['javascript.0.FensterUeberwachung.Haus.RoomOpenCount'],
+        postMsgDP: {dp:'javascript.0.FensterUeberwachung.Haus.RoomOpenCount', comp: '==', val: true, delayTime: 9000, repeatTime:0},  
+        removeMsgDP: {dp:'javascript.0.FensterUeberwachung.Haus.RoomOpenCount', comp: '!=', val: true}, // Nachricht enfernen, wenn die Bedingung eintritt
         msgText_1: {text: 'Fenster Haus länger als 15 Minuten geöffnet'},
         countEventsDP: 'javascript.0.FensterUeberwachung.Haus.RoomOpenWindowCount'
     },
+
+
+    // Raumklima - Lüftungserinnerung
+    // Unterstützung durch Raumklima-Skript / Absolute Feuchte berechnen
+    // https://forum.iobroker.net/topic/2313/skript-absolute-feuchte-berechnen
+    {
+        msgID: 'RAUMKLIMA_INFO', 
+        triggerDP: ['javascript.0.Raumklima.Lüften_Liste'],
+        postMsgDP: {dp:'javascript.0.Raumklima.Lüften', comp: '==', val: true},  
+        removeMsgDP: {dp:'javascript.0.Raumklima.Lüften', comp: '!=', val: true}, // Nachricht enfernen, wenn die Bedingung eintritt
+        msgText_1: {text: 'Bitte lüften in den folgenden Räumen:'},
+        msgText_2: {dp: 'javascript.0.Raumklima.Lüften_Liste'},
+        countEventsDP: 'javascript.0.Raumklima.Lüften_Anzahl'
+    },
+
+
+
 
     // Letzter Briefkasteneinwurf
     // Eine Nachricht wird nur ausgelöst, wenn der Sensor aktiviert wird
     {
         msgID: 'LAST_POSTENTRACE_INFO',
-        triggerDP: 'deconz.0.Sensors.8.open',
-        postMsgDP: {dp:'deconz.0.Sensors.8.open', comp: '==', val:true},
+        triggerDP: 'deconz.0.Sensors.00158d0002ca119d.open',
+        postMsgDP: {dp:'deconz.0.Sensors.00158d0002ca119d.open', comp: '==', val:true},
         msgText_1: {text: ''},
         countEventsDP: ''
     },    
@@ -224,6 +251,7 @@ const MESSAGE_EVENTS = [
         countEventsDP: '0_userdata.0.Anwesenheit.Status.allPresentPersonsCount'
     },
 
+    /*
     // Verpasste Anrufe (des Tages)
     // Über TR-064-Community-Adapter
     {
@@ -234,6 +262,7 @@ const MESSAGE_EVENTS = [
         msgText_2: {dp: 'tr-064.0.calllists.missed.count'},
         countEventsDP: 'tr-064.0.calllists.missed.count'
     } ,
+    */
 
     // letzter Anruf (des Tages)
     // Über TR-064-Community-Adapter
@@ -247,24 +276,62 @@ const MESSAGE_EVENTS = [
         msgText_4: {dp: 'tr-064.0.callmonitor.lastCall.calleeName'},
         countEventsDP: ''
     } ,
-    
+
+
+    // Status Alarmanlage
+    // über Skript von andreaskos
+    // https://forum.iobroker.net/topic/32885/umfassendes-alarmanlagen-skript/3
+    {
+        msgID: 'HOUSE_ALARM_STATUS', 
+        triggerDP: ['javascript.0.Alarmanlage.Output.StatusText'],
+        postMsgDP: {dp:'javascript.0.Alarmanlage.Output.Alarm', comp: '==', val: false},  
+        removeMsgDP: {dp:'javascript.0.Alarmanlage.Output.Alarm', comp: '==', val: true}, 
+        msgText_1: {text: 'Aktiv: '},
+        msgText_2: {dp: 'javascript.0.Alarmanlage.Output.StatusText'},
+        msgText_3: {text: '<br>'},
+        msgText_4: {text: 'Status: '},        
+        msgText_5: {dp: 'javascript.0.Alarmanlage.Output.AlarmText'}
+    },
+
+
+    // Status Alarmanlage
+    // über Skript von andreaskos
+    // https://forum.iobroker.net/topic/32885/umfassendes-alarmanlagen-skript/3
+    {
+        msgID: 'HOUSE_ALARM_ACTIVE', 
+        triggerDP: ['javascript.0.Alarmanlage.Output.Alarm'],
+        postMsgDP: {dp:'javascript.0.Alarmanlage.Output.Alarm', comp: '==', val: true},  
+        removeMsgDP: {dp:'javascript.0.Alarmanlage.Output.Alarm', comp: '==', val: false}, 
+        msgText_1: {text: 'Melder: '},
+        msgText_2: {dp: 'javascript.0.Alarmanlage.Output.AlarmingDetector'},
+        msgText_3: {text: '<br>'},
+        msgText_4: {text: 'Status: '},        
+        msgText_5: {dp: 'javascript.0.Alarmanlage.Output.AlarmText'},
+        msgText_6: {text: '<br>'},
+        msgText_7: {text: 'Aktiv: '},
+        msgText_8: {dp: 'javascript.0.Alarmanlage.Output.StatusText'}
+    },
+
 
     // SONOS_INFO
     // über SONOS-Adapter
+    /*
     {
         msgID: 'SONOS_INFO', 
-        triggerDP: ['sonos.0.root.192_168_178_59.current_artist', 'sonos.0.root.192_168_178_59.state'],
+        triggerDP: ['sonos.0.root.192_168_178_44.current_artist', 'sonos.0.root.192_168_178_44.state'],
         msgText_1: {text: '<img src=\''},
-        msgText_2: {dp: 'sonos.0.root.192_168_178_59.current_cover'},
+        msgText_2: {dp: 'http://iobroker:8082/sonos.0.root.192_168_178_44.current_cover'},
         msgText_3: {text: '\' height=\'50%\' width=\'50%\'></img>'},
         msgText_5: {text: '</br>Künstler: '},
-        msgText_6: {dp: 'sonos.0.root.192_168_178_59.current_artist'},
+        msgText_6: {dp: 'sonos.0.root.192_168_178_44.current_artist'},
         msgText_7: {text: '</br>Album: '},
-        msgText_8: {dp: 'sonos.0.root.192_168_178_59.current_album'}
+        msgText_8: {dp: 'sonos.0.root.192_168_178_44.current_album'}
     },
+    */
 
     // Corona-Statistics
     // über Corona-Adapter
+    /*
     {
         msgID: 'CORONA_STATS_CASES', 
         triggerDP: ['coronavirus-statistics.0.Germany.cases', 'coronavirus-statistics.0.Germany.deaths'],
@@ -275,18 +342,19 @@ const MESSAGE_EVENTS = [
         msgText_4: {dp: 'coronavirus-statistics.0.Germany.deaths', format:'"#.###"', decimals:0},
         countEvents: 'coronavirus-statistics.0.Germany.deaths'
     },
+    */
 
     // Temperatur-Information
     // Außen und Innentemperatur über eigene Sensoren
     {
         msgID: 'TEMPERATURE_INFO', 
-        triggerDP: ['deconz.0.Sensors.18.temperature', 'deconz.0.Sensors.3.temperature'],
+        triggerDP: ['deconz.0.Sensors.00158d0002c8cbb1.temperature', 'deconz.0.Sensors.00158d0002b53550.temperature'],
         postMsgDP: {dp:'deconz.0.Sensors.18.temperature'},
         msgText_1: {text: '🌐 '},
-        msgText_2: {dp: 'deconz.0.Sensors.18.temperature', format:'"##,#"', decimals:1},
+        msgText_2: {dp: 'deconz.0.Sensors.00158d0002c8cbb1.temperature', format:'"##,#"', decimals:1},
         msgText_3: {text: ' °C'},
         msgText_5: {text: ' 🏠 '},
-        msgText_6: {dp: 'deconz.0.Sensors.3.temperature', format:'"##,#"', decimals:1},
+        msgText_6: {dp: 'deconz.0.Sensors.00158d0002b53550.temperature', format:'"##,#"', decimals:1},
         msgText_7: {text: ' °C'},
         countEvents: ''
     },
@@ -305,41 +373,69 @@ const MESSAGE_EVENTS = [
         countEvents: 'trashschedule.0.next.daysleft'
     },
 
+    // Batterieüberwachung - Evtl. nächste Batterie zu wechseln 
+    // GITHUB: https://github.com/Pittini/iobroker-Batterienauswertung
+    // Forum ioBroker: https://forum.iobroker.net/topic/31676/vorlage-generische-batteriestandsüberwachung-vis-ausgabe
+    {
+        msgID: 'BATTERIE_INFO', 
+        triggerDP: ['javascript.0.BatterieUeberwachung.NextExpectedLowBatt'],
+        postMsgDP: {dp:'javascript.0.BatterieUeberwachung.NextExpectedLowBatt', comp: '!=', val:''},
+        removeMsgDP: {dp:'javascript.0.BatterieUeberwachung.NextExpectedLowBatt', comp: '==', val:''},
+        msgText_1: {text: ''},
+        msgText_2: {dp: 'javascript.0.BatterieUeberwachung.NextExpectedLowBatt'},
+        countEventsDP: ''
+    },
+
+    // Batterieüberwachung - Evtl. nächste Batterie zu wechseln 
+    // GITHUB: https://github.com/Pittini/iobroker-Batterienauswertung
+    // Forum ioBroker: https://forum.iobroker.net/topic/31676/vorlage-generische-batteriestandsüberwachung-vis-ausgabe
+    {
+        msgID: 'BATTERIE_WARN', 
+        triggerDP: ['javascript.0.BatterieUeberwachung.LastMessage'],
+        postMsgDP: {dp:'javascript.0.BatterieUeberwachung.LastMessage', comp: '!=', val:''},
+        removeMsgDP: {dp:'javascript.0.BatterieUeberwachung.LastMessage', comp: '==', val:''},
+        msgText_1: {text: ''},
+        msgText_2: {dp: 'javascript.0.BatterieUeberwachung.LastMessage'},
+        countEventsDP: ''
+    },
+
     // Gefrierschrank geöffnet
     // über eigenen Sensor
     {
         msgID: 'FREEZER_DOOR_ISOPEN_INFO', 
-        triggerDP: 'deconz.0.Sensors.56.open',
-        postMsgDP: {dp:'deconz.0.Sensors.56.open', comp: '==', val:true, delayTime: 60, repeatTime: 180},
-        removeMsgDP: {dp:'deconz.0.Sensors.56.open', comp: '==', val:false}, 
+        triggerDP: 'deconz.0.Sensors.00158d00044fb533.open',
+        postMsgDP: {dp:'deconz.0.Sensors.00158d00044fb533.open', comp: '==', val:true, delayTime: 60, repeatTime: 600},
+        removeMsgDP: {dp:'deconz.0.Sensors.00158d00044fb533.open', comp: '==', val:false}, 
         msgText_1: {text: ''},
     },
 
     // Kühlschrank geöffnet
     // über eigenen Sensor
+    /*
     {
         msgID: 'FRIDGE_DOOR_ISOPEN_INFO', 
         triggerDP: 'deconz.0.Sensors.57.open',
-        postMsgDP: {dp:'deconz.0.Sensors.57.open', comp: '==', val:true, delayTime: 30, repeatTime: 180},
-        removeMsgDP: {dp:'deconz.0.Sensors.57.open', comp: '==', val:false}, 
+        postMsgDP: {dp:'deconz.0.Sensors.57.open', comp: '==', val:true, delayTime: 90, repeatTime: 3600},
+        removeMsgDP: {dp:'deconz.0.Sensors.57.open', comp: '==', val:true}, 
         msgText_1: {text: ''},
     },
+    */
     
 
     // DWD Wetterwarnung 
     // Über DWD-Adapter, erfordert die Konfiguration von 3 Meldungen im Adapter
     {
-        msgID: 'DWD_WARN', 
+        msgID: 'DWD_WARN_1', 
         triggerDP: 'dwd.0.warning.severity',
         postMsgDP: {dp:'dwd.0.warning.severity', comp: '!=', val:0, delayTime: 10},
         removeMsgDP: {dp:'dwd.0.warning.severity', comp: '==', val:0},
-        msgText_1: {dp: 'dwd.0.warning.text'},
-        msgText_2: {text: ' <br> '},
-        msgText_3: {dp: 'dwd.0.warning.description'},
-        msgText_4: {text: ' <br> '},
-        msgText_5: {dp: 'dwd.0.warning1.text'},
-        msgText_6: {text: ' <br> '},
-        msgText_7: {dp: 'dwd.0.warning1.description'},
+        msgText_1: {dp: 'dwd.0.warning.headline'},
+        msgText_2: {text: '<br>Beginn: '},
+        msgText_3: {dp: 'dwd.0.warning.begin', formatDate:'TT.MM.YY SS:mm'},
+        msgText_4: {text: '<br>Ende  : '},
+        msgText_5: {dp: 'dwd.0.warning.end', formatDate:'TT.MM.YY SS:mm'},
+        msgText_6: {text: '<br>'},
+        msgText_7: {dp: 'dwd.0.warning.description'},
         countEventsDP: ''
     },
 
@@ -348,9 +444,9 @@ const MESSAGE_EVENTS = [
     // über eigenen Sensor
     {
         msgID: 'WATER_ALARM', 
-        triggerDP: 'deconz.0.Sensors.21.water',
-        postMsgDP: {dp:'deconz.0.Sensors.21.water', comp: '==', val:true},
-        //removeMsgDP: {dp:'deconz.0.Sensors.21.water', comp: '==', val:false}, // Nachricht wird zur Sicherheit nicht entfernt, falls der Sensor toggelt!
+        triggerDP: 'deconz.0.Sensors.00158d0002411912.water',
+        postMsgDP: {dp:'deconz.0.Sensors.00158d0002411912.water', comp: '==', val:true},
+        //removeMsgDP: {dp:'deconz.0.Sensors.00158d0002411912.water', comp: '==', val:false}, // Nachricht wird zur Sicherheit nicht entfernt, falls der Sensor toggelt!
         msgText_1: {text: 'Wasseralarm im Werkzeugraum!'},
         countEventsDP: ''
     },
@@ -359,9 +455,9 @@ const MESSAGE_EVENTS = [
     // über eigenen Sensor
     {
         msgID: 'WATER_ALARM', 
-        triggerDP: 'deconz.0.Sensors.34.water',
-        postMsgDP: {dp:'deconz.0.Sensors.34.water', comp: '==', val:true},
-        //removeMsgDP: {dp:'deconz.0.Sensors.34.water', comp: '==', val:false}, // Nachricht wird zur Sicherheit nicht entfernt, falls der Sensor toggelt!
+        triggerDP: 'deconz.0.Sensors.00158d0002788119.water',
+        postMsgDP: {dp:'deconz.0.Sensors.00158d0002788119.water', comp: '==', val:true},
+        //removeMsgDP: {dp:'deconz.0.Sensors.00158d0002788119.water', comp: '==', val:false}, // Nachricht wird zur Sicherheit nicht entfernt, falls der Sensor toggelt!
         msgText_1: {text: 'Wasseralarm im Waschraum!'},
         countEventsDP: ''
     },
@@ -370,20 +466,21 @@ const MESSAGE_EVENTS = [
     // über eigenen Sensor
     {
         msgID: 'WATER_ALARM', 
-        triggerDP: 'deconz.0.Sensors.6.water',
-        postMsgDP: {dp:'deconz.0.Sensors.6.water', comp: '==', val:true},
-        //removeMsgDP: {dp:'deconz.0.Sensors.6.water', comp: '==', val:false}, // Nachricht wird zur Sicherheit nicht entfernt, falls der Sensor toggelt!
+        triggerDP: 'deconz.0.Sensors.00158d000278817b.water',
+        postMsgDP: {dp:'deconz.0.Sensors.00158d000278817b.water', comp: '==', val:true},
+        //removeMsgDP: {dp:'deconz.0.Sensors.00158d000278817b.water', comp: '==', val:false}, // Nachricht wird zur Sicherheit nicht entfernt, falls der Sensor toggelt!
         msgText_1: {text: 'Wasseralarm in der Küche!'},
         countEventsDP: ''
     },
+
 
     // Wassersensor großer Kellerraum
     // über eigenen Sensor
     {
         msgID: 'WATER_ALARM', 
-        triggerDP: 'deconz.0.Sensors.7.water',
-        postMsgDP: {dp:'deconz.0.Sensors.7.water', comp: '==', val:true},
-        //removeMsgDP: {dp:'deconz.0.Sensors.7.water', comp: '==', val:false}, // Nachricht wird zur Sicherheit nicht entfernt, falls der Sensor toggelt!
+        triggerDP: 'deconz.0.Sensors.00158d0002788124.water',
+        postMsgDP: {dp:'deconz.0.Sensors.00158d0002788124.water', comp: '==', val:true},
+        //removeMsgDP: {dp:'deconz.0.Sensors.00158d0002788124.water', comp: '==', val:false}, // Nachricht wird zur Sicherheit nicht entfernt, falls der Sensor toggelt!
         msgText_1: {text: 'Wasseralarm im großen Kellerraum!'},
         countEventsDP: ''
     },
@@ -426,9 +523,8 @@ const MESSAGE_EVENTS = [
     // Update ioBroker
     // über Admin-Adapter
     {
-
         msgID: 'UPDATE_INFO', 
-        triggerDP: 'admin.0.info.updatesNumber',
+        triggerDP: 'admin.0.info.updatesList',
         postMsgDP: {dp:'admin.0.info.updatesNumber', comp: '>', val:0},
         removeMsgDP: {dp:'admin.0.info.updatesNumber', comp: '==', val:0},
         msgText_1: {text: 'Adapter: '},
@@ -436,6 +532,17 @@ const MESSAGE_EVENTS = [
         msgText_3: {text: '. Bitte aktualisieren.'},
         countEventsDP: 'admin.0.info.updatesNumber'
     },
+
+    // Deconz Warnung, wenn Verbindung ausgefallen im Adapter
+    // über Deconz-Adapter
+    {
+        msgID: 'DECONZ_Warning', 
+        triggerDP: 'deconz.0.info.connection',
+        postMsgDP: {dp:'deconz.0.info.connection', comp: '==', val:false},
+        removeMsgDP: {dp:'deconz.0.info.connection', comp: '==', val:true},
+        msgText_1: {text: 'Zigbee offline! Deconz-Adapter nicht verbunden!'}
+    },
+    
     /*
     // Gäste WLAN
     // über tr.064-Adapter
@@ -809,20 +916,36 @@ class MessageStateCreator {
 							this.logWarn('Konfiguration der Textausgabe ' + MsgConf.msgID + 'Es wurde kein Nachrichtentext definiert (msgText_1, etc.). Bitte Script-Konfiguration überprüfen.');
 						} else {
 							for (const MSGTEXT_KEY of MSGTEXT_KEYS) {
-								let dp = MsgConf[MSGTEXT_KEY].dp;                    
+								let dp = MsgConf[MSGTEXT_KEY].dp;  
+
 								if( ! this.isLikeEmpty(dp)) { 
 									if(this.existState(dp)) {
-										let val = getState(dp).val;
 
-                                        let decimals = MsgConf[MSGTEXT_KEY].decimals;                   
-                                        let format = MsgConf[MSGTEXT_KEY].format;  
+                                        let val = getState(dp).val;
+                                        // Aufbereitung States Mapping 
+                                        let txtStates = this.getStatesObj(dp);
+                                        if (txtStates != null) {
+                                            
+                                            msgText += this.getStatetxt(dp, val) ;
 
-                                        if( ! this.isLikeEmpty(decimals) && !this.isLikeEmpty(format)) { 
-                                            val = formatValue(val, decimals, format);
-                                        } else if (!this.isLikeEmpty(format)) {
-                                            val = formatValue(val, 0, format);
-                                        }
-                                        msgText += val;
+                                        } else {
+                                         
+                                            let decimals = MsgConf[MSGTEXT_KEY].decimals;                   
+                                            let format = MsgConf[MSGTEXT_KEY].format;  
+                                            let formatDate = MsgConf[MSGTEXT_KEY].formatDate;  
+
+                                            if( ! this.isLikeEmpty(decimals) && !this.isLikeEmpty(format)) { 
+                                                val = formatValue(val, decimals, format);
+
+                                            } else if( !this.isLikeEmpty(formatDate)) { 
+                                                 val = formatDate(new Date(val).getTime(), format);
+                                            
+                                            } else if (!this.isLikeEmpty(format)) {
+                                                val = formatValue(val, 0, format);
+                                            }
+                                            
+                                            msgText += val;  
+                                        }                                      
                                         
 									} else {
 									    this.log('Datenpunkt ' + dp + ' existiert nicht! [' + MsgConf.msgID + '].');
@@ -866,6 +989,38 @@ class MessageStateCreator {
 			} // for
         } // for
     } 
+
+    getStatesObj(id) {
+
+        if(!getObject(id)) {
+            //log(id + ': kein Objekt', 'warn');
+            return null;
+        }
+
+        var obj = getObject(id);
+        if (!obj.common.states) {
+            //log(id + ': keine Zustandtexte', 'warn');
+            return null;
+        }
+        var states = obj.common.states;
+
+        if (typeof states == 'string') {
+            var arr = states.split(';');
+            states = {};
+            for(var i = 0; i < arr.length; i++) {
+                var ele = arr[i].split(':');
+                states[ele[0]] = ele[1];
+            }
+        }
+        return states;
+
+    }
+
+    getStatetxt(id, val) {
+        var states = this.getStatesObj(id);
+        if(states) return states[val];
+        else return null;
+    }
 	
 	checkCondition(objID, MsgConf, field, hasDelay) {
 
