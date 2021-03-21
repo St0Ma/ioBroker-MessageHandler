@@ -121,6 +121,11 @@ Zur Konfiguration sind zwei Schritte erforderlich:
    und Nachrichten automatisiert ausgelöst werden.
    Die Konfiguration erfolgt hierfür im Javascript "MessageStateCreator" über die Konstante MESSAGE_EVENTS.
    Im Javascript selbst sind auch Beispiele enthalten, wie die Konfiguration durchgeführt wird.
+   
+# Beispiele / Detail-Konfiguration
+
+Detaillierte Beispiele finden sich im Wiki (erstellt durch der-eine):
+https://github.com/St0Ma/ioBroker-MessageHandler/wiki
 
 # Versionshistorie
  *  0.9  - Lovelace Datenpunkt "messages.markdown" hinzugefügt.
